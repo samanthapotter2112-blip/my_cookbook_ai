@@ -1,6 +1,3 @@
-import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -20,15 +17,12 @@ class CookbookPage extends StatefulWidget {
 }
 
 class _CookbookPageState extends State<CookbookPage> {
-  final TextEditingController controller = TextEditingController();
+  final TextEditingController recipeNameController =
+      TextEditingController();
 
   Box? recipeBox;
 
-  List<dynamic> recipeKeys = [];
-  List<String> recipes = [];
-
-  Uint8List? selectedImage;
-  String extractedText = '';
+  List<String> recipeNames = [];
 
   bool isLoading = true;
 
@@ -39,94 +33,74 @@ class _CookbookPageState extends State<CookbookPage> {
   }
 
   Future<void> openRecipeBox() async {
-    final box = await Hive.openBox(widget.cookbookName);
+    final Box box = Hive.isBoxOpen(widget.cookbookName)
+        ? Hive.box(widget.cookbookName)
+        : await Hive.openBox(widget.cookbookName);
 
     recipeBox = box;
+
+    loadRecipes();
 
     if (!mounted) return;
 
     setState(() {
-      loadRecipes();
       isLoading = false;
     });
   }
 
   void loadRecipes() {
-    final box = recipeBox;
+    final Box? box = recipeBox;
 
-    if (box == null) return;
+    if (box == null) {
+      recipeNames = [];
+      return;
+    }
 
-    recipeKeys = box.keys.toList();
-    recipes = box.values.map((value) => value.toString()).toList();
-  }
+    recipeNames = box.keys
+        .map((dynamic key) => key.toString())
+        .toList();
 
-  Future<void> scanPage() async {
-    final FilePickerResult? result =
-        await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
+    recipeNames.sort(
+      (String first, String second) =>
+          first.toLowerCase().compareTo(
+                second.toLowerCase(),
+              ),
     );
-
-    if (result == null) return;
-
-    final Uint8List? imageBytes = result.files.first.bytes;
-
-    if (imageBytes == null) return;
-
-    setState(() {
-      selectedImage = imageBytes;
-
-      // Temporary text until OCR is connected.
-      extractedText = '''
-Chocolate Cake
-
-Ingredients
-• 2 cups flour
-• 1 cup sugar
-• 2 eggs
-• 150g butter
-
-Method
-
-1. Mix all ingredients.
-2. Pour into a cake tin.
-3. Bake for 35 minutes.
-''';
-    });
   }
 
   void showAddRecipeDialog() {
-    controller.clear();
+    recipeNameController.clear();
 
     showDialog<void>(
       context: context,
-      builder: (dialogContext) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Add Recipe'),
           content: TextField(
-            controller: controller,
+            controller: recipeNameController,
             autofocus: true,
             textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(
-              hintText: 'Recipe name',
+              labelText: 'Recipe name',
+              hintText: 'For example: Vegetable Lasagne',
+              border: OutlineInputBorder(),
             ),
             onSubmitted: (_) {
-              saveNewRecipe(dialogContext);
+              createRecipe(dialogContext);
             },
           ),
           actions: [
             TextButton(
               onPressed: () {
-                controller.clear();
                 Navigator.pop(dialogContext);
               },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
-                saveNewRecipe(dialogContext);
+                createRecipe(dialogContext);
               },
-              child: const Text('Save'),
+              child: const Text('Continue'),
             ),
           ],
         );
@@ -134,47 +108,104 @@ Method
     );
   }
 
-  Future<void> saveNewRecipe(BuildContext dialogContext) async {
-    final box = recipeBox;
-    final recipeName = controller.text.trim();
+  Future<void> createRecipe(
+    BuildContext dialogContext,
+  ) async {
+    final Box? box = recipeBox;
 
-    if (box == null || recipeName.isEmpty) return;
+    if (box == null) return;
 
-    await box.add(recipeName);
+    final String recipeName =
+        recipeNameController.text.trim();
 
-    if (!mounted) return;
+    if (recipeName.isEmpty) return;
 
-    setState(loadRecipes);
+    final bool alreadyExists = box.keys.any(
+      (dynamic key) =>
+          key.toString().trim().toLowerCase() ==
+          recipeName.toLowerCase(),
+    );
 
-    controller.clear();
+    if (alreadyExists) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '"$recipeName" already exists in this cookbook.',
+          ),
+        ),
+      );
+
+      return;
+    }
 
     if (dialogContext.mounted) {
       Navigator.pop(dialogContext);
     }
+
+    final bool? saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipePage(
+          cookbookName: widget.cookbookName,
+          recipeName: recipeName,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (saved == true) {
+      setState(loadRecipes);
+    }
   }
 
-  Future<void> confirmDeleteRecipe({
-    required dynamic recipeKey,
-    required String recipeName,
-  }) async {
-    final bool? shouldDelete = await showDialog<bool>(
+  Future<void> openRecipe(
+    String recipeName,
+  ) async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipePage(
+          cookbookName: widget.cookbookName,
+          recipeName: recipeName,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(loadRecipes);
+  }
+
+  Future<void> confirmDeleteRecipe(
+    String recipeName,
+  ) async {
+    final bool? shouldDelete =
+        await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Delete recipe?'),
           content: Text(
-            'Are you sure you want to delete "$recipeName"?',
+            'Are you sure you want to delete '
+            '"$recipeName"?',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext, false);
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
               },
               child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(dialogContext, true);
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
               },
               child: const Text('Delete'),
             ),
@@ -185,30 +216,17 @@ Method
 
     if (shouldDelete != true) return;
 
-    await deleteRecipe(
-      recipeKey: recipeKey,
-      recipeName: recipeName,
-    );
+    await deleteRecipe(recipeName);
   }
 
-  Future<void> deleteRecipe({
-    required dynamic recipeKey,
-    required String recipeName,
-  }) async {
-    final box = recipeBox;
+  Future<void> deleteRecipe(
+    String recipeName,
+  ) async {
+    final Box? box = recipeBox;
 
     if (box == null) return;
 
-    await box.delete(recipeKey);
-
-    // Also remove the recipe-detail record saved by RecipePage.
-    if (Hive.isBoxOpen('recipe_details')) {
-      final detailsBox = Hive.box('recipe_details');
-      await detailsBox.delete(recipeName);
-    } else {
-      final detailsBox = await Hive.openBox('recipe_details');
-      await detailsBox.delete(recipeName);
-    }
+    await box.delete(recipeName);
 
     if (!mounted) return;
 
@@ -216,155 +234,143 @@ Method
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$recipeName deleted'),
+        content: Text(
+          '$recipeName deleted',
+        ),
       ),
     );
   }
 
   @override
   void dispose() {
-    controller.dispose();
+    recipeNameController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
         title: Text(widget.cookbookName),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: isLoading ? null : showAddRecipeDialog,
-        tooltip: 'Add recipe',
-        child: const Icon(Icons.add),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed:
+            isLoading ? null : showAddRecipeDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Recipe'),
       ),
       body: isLoading
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: ListView(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: scanPage,
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Scan Cookbook Page'),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (selectedImage != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.memory(
-                        selectedImage!,
-                        height: 250,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  if (selectedImage != null)
-                    const SizedBox(height: 20),
-                  if (extractedText.isNotEmpty)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          extractedText,
-                          style: const TextStyle(fontSize: 16),
+          : recipeNames.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.restaurant_menu,
+                          size: 70,
+                          color: Colors.grey,
                         ),
-                      ),
-                    ),
-                  const SizedBox(height: 25),
-                  const Text(
-                    'Recipes',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  if (recipes.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 40),
-                      child: Center(
-                        child: Text(
-                          'No recipes yet.\nTap + to add one.',
+                        SizedBox(height: 18),
+                        Text(
+                          'No recipes yet',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 10),
+                        Text(
+                          'Tap Add Recipe to create one, '
+                          'or use the Scan tab.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 18),
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                    16,
+                    20,
+                    16,
+                    100,
+                  ),
+                  itemCount: recipeNames.length,
+                  itemBuilder: (
+                    BuildContext context,
+                    int index,
+                  ) {
+                    final String recipeName =
+                        recipeNames[index];
+
+                    return Dismissible(
+                      key: ValueKey(
+                        '${widget.cookbookName}-$recipeName',
+                      ),
+                      direction:
+                          DismissDirection.endToStart,
+                      confirmDismiss: (_) async {
+                        await confirmDeleteRecipe(
+                          recipeName,
+                        );
+
+                        return false;
+                      },
+                      background: Container(
+                        margin: const EdgeInsets.only(
+                          bottom: 12,
+                        ),
+                        padding: const EdgeInsets.only(
+                          right: 24,
+                        ),
+                        alignment: Alignment.centerRight,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.delete,
+                          color: Colors.white,
                         ),
                       ),
-                    )
-                  else
-                    ...List.generate(
-                      recipes.length,
-                      (index) {
-                        final recipeName = recipes[index];
-                        final recipeKey = recipeKeys[index];
-
-                        return Dismissible(
-                          key: ValueKey(recipeKey),
-                          direction: DismissDirection.endToStart,
-                          confirmDismiss: (_) async {
-                            await confirmDeleteRecipe(
-                              recipeKey: recipeKey,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: RecipeCard(
                               recipeName: recipeName,
-                            );
-
-                            // The list is updated manually after deletion.
-                            return false;
-                          },
-                          background: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.only(right: 24),
-                            alignment: Alignment.centerRight,
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.delete,
-                              color: Colors.white,
+                              onTap: () {
+                                openRecipe(recipeName);
+                              },
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: RecipeCard(
-                                  recipeName: recipeName,
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => RecipePage(
-                                          recipeName: recipeName,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Delete recipe',
-                                onPressed: () {
-                                  confirmDeleteRecipe(
-                                    recipeKey: recipeKey,
-                                    recipeName: recipeName,
-                                  );
-                                },
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                            ],
+                          IconButton(
+                            tooltip: 'Delete recipe',
+                            onPressed: () {
+                              confirmDeleteRecipe(
+                                recipeName,
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.delete_outline,
+                            ),
                           ),
-                        );
-                      },
-                    ),
-                  const SizedBox(height: 80),
-                ],
-              ),
-            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }

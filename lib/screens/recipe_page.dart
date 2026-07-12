@@ -5,11 +5,30 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 class RecipePage extends StatefulWidget {
+  final String cookbookName;
   final String recipeName;
+
+  final String initialPageNumber;
+  final String initialPrepTime;
+  final String initialCookTime;
+  final String initialServings;
+  final String initialIngredients;
+  final String initialMethod;
+  final String initialNotes;
+  final Uint8List? initialPhoto;
 
   const RecipePage({
     super.key,
+    required this.cookbookName,
     required this.recipeName,
+    this.initialPageNumber = '',
+    this.initialPrepTime = '',
+    this.initialCookTime = '',
+    this.initialServings = '',
+    this.initialIngredients = '',
+    this.initialMethod = '',
+    this.initialNotes = '',
+    this.initialPhoto,
   });
 
   @override
@@ -17,47 +36,88 @@ class RecipePage extends StatefulWidget {
 }
 
 class _RecipePageState extends State<RecipePage> {
-  final TextEditingController pageController = TextEditingController();
-  final TextEditingController prepTimeController = TextEditingController();
-  final TextEditingController cookTimeController = TextEditingController();
-  final TextEditingController servingsController = TextEditingController();
+  final TextEditingController pageController =
+      TextEditingController();
+
+  final TextEditingController prepTimeController =
+      TextEditingController();
+
+  final TextEditingController cookTimeController =
+      TextEditingController();
+
+  final TextEditingController servingsController =
+      TextEditingController();
+
   final TextEditingController ingredientsController =
       TextEditingController();
-  final TextEditingController methodController = TextEditingController();
-  final TextEditingController notesController = TextEditingController();
 
-  Box? recipeDetailsBox;
+  final TextEditingController methodController =
+      TextEditingController();
+
+  final TextEditingController notesController =
+      TextEditingController();
+
+  Box? cookbookBox;
 
   Uint8List? recipePhoto;
+
   bool favourite = false;
   bool isLoading = true;
+  bool isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    openRecipeDetailsBox();
+
+    loadInitialValues();
+    openCookbook();
   }
 
-  Future<void> openRecipeDetailsBox() async {
-    final box = await Hive.openBox('recipe_details');
+  void loadInitialValues() {
+    pageController.text = widget.initialPageNumber;
+    prepTimeController.text = widget.initialPrepTime;
+    cookTimeController.text = widget.initialCookTime;
+    servingsController.text = widget.initialServings;
+    ingredientsController.text = widget.initialIngredients;
+    methodController.text = widget.initialMethod;
+    notesController.text = widget.initialNotes;
+    recipePhoto = widget.initialPhoto;
+  }
 
-    recipeDetailsBox = box;
+  Future<void> openCookbook() async {
+    final Box box = Hive.isBoxOpen(widget.cookbookName)
+        ? Hive.box(widget.cookbookName)
+        : await Hive.openBox(widget.cookbookName);
 
-    final savedData = box.get(widget.recipeName);
+    cookbookBox = box;
 
-    if (savedData is Map) {
-      pageController.text = savedData['pageNumber']?.toString() ?? '';
-      prepTimeController.text = savedData['prepTime']?.toString() ?? '';
-      cookTimeController.text = savedData['cookTime']?.toString() ?? '';
-      servingsController.text = savedData['servings']?.toString() ?? '';
+    final dynamic savedRecipe = box.get(widget.recipeName);
+
+    if (savedRecipe is Map) {
+      pageController.text =
+          savedRecipe['pageNumber']?.toString() ?? '';
+
+      prepTimeController.text =
+          savedRecipe['prepTime']?.toString() ?? '';
+
+      cookTimeController.text =
+          savedRecipe['cookTime']?.toString() ?? '';
+
+      servingsController.text =
+          savedRecipe['servings']?.toString() ?? '';
+
       ingredientsController.text =
-          savedData['ingredients']?.toString() ?? '';
-      methodController.text = savedData['method']?.toString() ?? '';
-      notesController.text = savedData['notes']?.toString() ?? '';
+          savedRecipe['ingredients']?.toString() ?? '';
 
-      favourite = savedData['favourite'] == true;
+      methodController.text =
+          savedRecipe['method']?.toString() ?? '';
 
-      final savedPhoto = savedData['photo'];
+      notesController.text =
+          savedRecipe['notes']?.toString() ?? '';
+
+      favourite = savedRecipe['favourite'] == true;
+
+      final dynamic savedPhoto = savedRecipe['photo'];
 
       if (savedPhoto is Uint8List) {
         recipePhoto = savedPhoto;
@@ -91,35 +151,100 @@ class _RecipePageState extends State<RecipePage> {
     });
   }
 
+  Future<void> toggleFavourite() async {
+    setState(() {
+      favourite = !favourite;
+    });
+
+    final Box? box = cookbookBox;
+
+    if (box == null) return;
+
+    final dynamic savedRecipe = box.get(widget.recipeName);
+
+    if (savedRecipe is Map) {
+      final Map<String, dynamic> updatedRecipe =
+          Map<String, dynamic>.from(savedRecipe);
+
+      updatedRecipe['favourite'] = favourite;
+
+      await box.put(
+        widget.recipeName,
+        updatedRecipe,
+      );
+    }
+  }
+
   Future<void> saveRecipe() async {
-    final box = recipeDetailsBox;
+    if (isSaving) return;
+
+    final Box? box = cookbookBox;
 
     if (box == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Cookbook storage is not ready.',
+          ),
+        ),
+      );
+
       return;
     }
 
-    final recipeData = <String, dynamic>{
-      'name': widget.recipeName,
-      'pageNumber': pageController.text.trim(),
-      'prepTime': prepTimeController.text.trim(),
-      'cookTime': cookTimeController.text.trim(),
-      'servings': servingsController.text.trim(),
-      'ingredients': ingredientsController.text.trim(),
-      'method': methodController.text.trim(),
-      'notes': notesController.text.trim(),
-      'favourite': favourite,
-      'photo': recipePhoto,
-    };
+    setState(() {
+      isSaving = true;
+    });
 
-    await box.put(widget.recipeName, recipeData);
+    try {
+      final Map<String, dynamic> recipeData = {
+        'name': widget.recipeName.trim(),
+        'cookbookName': widget.cookbookName,
+        'pageNumber': pageController.text.trim(),
+        'prepTime': prepTimeController.text.trim(),
+        'cookTime': cookTimeController.text.trim(),
+        'servings': servingsController.text.trim(),
+        'ingredients': ingredientsController.text.trim(),
+        'method': methodController.text.trim(),
+        'notes': notesController.text.trim(),
+        'favourite': favourite,
+        'photo': recipePhoto,
+      };
 
-    if (!mounted) return;
+      await box.put(
+        widget.recipeName.trim(),
+        recipeData,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Recipe saved'),
-      ),
-    );
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Recipe saved'),
+        ),
+      );
+
+      Navigator.pop(
+        context,
+        true,
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not save recipe: $error',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
+      }
+    }
   }
 
   @override
@@ -131,6 +256,7 @@ class _RecipePageState extends State<RecipePage> {
     ingredientsController.dispose();
     methodController.dispose();
     notesController.dispose();
+
     super.dispose();
   }
 
@@ -148,34 +274,53 @@ class _RecipePageState extends State<RecipePage> {
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
         title: Text(widget.recipeName),
         actions: [
           IconButton(
-            onPressed: () {
-              setState(() {
-                favourite = !favourite;
-              });
-            },
-            icon: Icon(
-              favourite ? Icons.favorite : Icons.favorite_border,
-            ),
+            onPressed: isSaving ? null : toggleFavourite,
             tooltip: favourite
                 ? 'Remove from favourites'
                 : 'Add to favourites',
+            icon: Icon(
+              favourite
+                  ? Icons.favorite
+                  : Icons.favorite_border,
+            ),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.menu_book_outlined,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.cookbookName,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           Center(
             child: GestureDetector(
-              onTap: pickRecipePhoto,
+              onTap: isSaving ? null : pickRecipePhoto,
               child: recipePhoto == null
                   ? CircleAvatar(
                       radius: 65,
-                      backgroundColor: Colors.orange.shade100,
+                      backgroundColor:
+                          Colors.orange.shade100,
                       child: const Icon(
                         Icons.camera_alt,
                         size: 42,
@@ -184,7 +329,8 @@ class _RecipePageState extends State<RecipePage> {
                     )
                   : CircleAvatar(
                       radius: 65,
-                      backgroundImage: MemoryImage(recipePhoto!),
+                      backgroundImage:
+                          MemoryImage(recipePhoto!),
                     ),
             ),
           ),
@@ -281,9 +427,21 @@ class _RecipePageState extends State<RecipePage> {
           SizedBox(
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: saveRecipe,
-              icon: const Icon(Icons.save),
-              label: const Text('Save Recipe'),
+              onPressed: isSaving ? null : saveRecipe,
+              icon: isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.save),
+              label: Text(
+                isSaving
+                    ? 'Saving...'
+                    : 'Save Recipe',
+              ),
             ),
           ),
           const SizedBox(height: 30),

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'screens/home_page.dart';
+import 'screens/main_navigation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Hive.initFlutter();
   await Hive.openBox('cookbooks');
+  final cookbookBox = Hive.box('cookbooks');
+
+  debugPrint(
+    'Cookbooks stored: ${cookbookBox.values.toList()}',
+  );
 
   runApp(const MyCookbookApp());
 }
@@ -26,7 +31,7 @@ class MyCookbookApp extends StatelessWidget {
           seedColor: Colors.deepOrange,
         ),
       ),
-      home: const HomePage(),
+      home: const MainNavigation(),
     );
   }
 }
