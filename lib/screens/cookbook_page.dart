@@ -349,6 +349,7 @@ class _CookbookPageState extends State<CookbookPage> {
                         children: [
                           Expanded(
                             child: RecipeCard(
+                              cookbookName: widget.cookbookName,
                               recipeName: recipeName,
                               onTap: () {
                                 openRecipe(recipeName);

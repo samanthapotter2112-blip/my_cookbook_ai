@@ -27,11 +27,33 @@ class MyCookbookApp extends StatelessWidget {
       title: 'My Cookbook AI',
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepOrange,
-        ),
-      ),
-      home: const MainNavigation(),
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: const Color(0xFFD96C3F),
+    brightness: Brightness.light,
+  ),
+  scaffoldBackgroundColor: const Color(0xFFF8F5F2),
+  appBarTheme: const AppBarTheme(
+    backgroundColor: Color(0xFFF8F5F2),
+    foregroundColor: Colors.black87,
+    elevation: 0,
+    centerTitle: false,
+  ),
+  cardTheme: CardThemeData(
+    elevation: 2,
+    color: Colors.white,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+    ),
+  ),
+  inputDecorationTheme: InputDecorationTheme(
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+    ),
+  ),
+),
+home: const MainNavigation(),
     );
   }
 }
