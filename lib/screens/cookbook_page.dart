@@ -61,11 +61,29 @@ class _CookbookPageState extends State<CookbookPage> {
         .toList();
 
     recipeNames.sort(
-      (String first, String second) =>
-          first.toLowerCase().compareTo(
-                second.toLowerCase(),
-              ),
+      (String first, String second) {
+        return first.toLowerCase().compareTo(
+              second.toLowerCase(),
+            );
+      },
     );
+  }
+
+  int getFavouriteCount() {
+    final Box? box = recipeBox;
+
+    if (box == null) return 0;
+
+    int count = 0;
+
+    for (final dynamic value in box.values) {
+      if (value is Map &&
+          value['favourite'] == true) {
+        count++;
+      }
+    }
+
+    return count;
   }
 
   void showAddRecipeDialog() {
@@ -79,11 +97,14 @@ class _CookbookPageState extends State<CookbookPage> {
           content: TextField(
             controller: recipeNameController,
             autofocus: true,
-            textCapitalization: TextCapitalization.words,
+            textCapitalization:
+                TextCapitalization.words,
             decoration: const InputDecoration(
               labelText: 'Recipe name',
-              hintText: 'For example: Vegetable Lasagne',
-              border: OutlineInputBorder(),
+              hintText:
+                  'For example: Vegetable Lasagne',
+              prefixIcon:
+                  Icon(Icons.restaurant_menu),
             ),
             onSubmitted: (_) {
               createRecipe(dialogContext);
@@ -96,11 +117,12 @@ class _CookbookPageState extends State<CookbookPage> {
               },
               child: const Text('Cancel'),
             ),
-            ElevatedButton(
+            FilledButton.icon(
               onPressed: () {
                 createRecipe(dialogContext);
               },
-              child: const Text('Continue'),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Continue'),
             ),
           ],
         );
@@ -142,7 +164,8 @@ class _CookbookPageState extends State<CookbookPage> {
       Navigator.pop(dialogContext);
     }
 
-    final bool? saved = await Navigator.push<bool>(
+    final bool? saved =
+        await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => RecipePage(
@@ -187,8 +210,8 @@ class _CookbookPageState extends State<CookbookPage> {
         return AlertDialog(
           title: const Text('Delete recipe?'),
           content: Text(
-            'Are you sure you want to delete '
-            '"$recipeName"?',
+            'Delete "$recipeName"? '
+            'This cannot be undone.',
           ),
           actions: [
             TextButton(
@@ -200,14 +223,16 @@ class _CookbookPageState extends State<CookbookPage> {
               },
               child: const Text('Cancel'),
             ),
-            FilledButton(
+            FilledButton.icon(
               onPressed: () {
                 Navigator.pop(
                   dialogContext,
                   true,
                 );
               },
-              child: const Text('Delete'),
+              icon:
+                  const Icon(Icons.delete_outline),
+              label: const Text('Delete'),
             ),
           ],
         );
@@ -249,12 +274,16 @@ class _CookbookPageState extends State<CookbookPage> {
 
   @override
   Widget build(BuildContext context) {
+    final int favouriteCount =
+        getFavouriteCount();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
         title: Text(widget.cookbookName),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton:
+          FloatingActionButton.extended(
         onPressed:
             isLoading ? null : showAddRecipeDialog,
         icon: const Icon(Icons.add),
@@ -264,114 +293,239 @@ class _CookbookPageState extends State<CookbookPage> {
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : recipeNames.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(30),
-                    child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.restaurant_menu,
-                          size: 70,
-                          color: Colors.grey,
+          : CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding:
+                      const EdgeInsets.fromLTRB(
+                    20,
+                    12,
+                    20,
+                    8,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: Card(
+                      elevation: 1,
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.all(18),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 58,
+                              height: 58,
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFFFE3D5,
+                                ),
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  18,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.menu_book_outlined,
+                                size: 30,
+                                color:
+                                    Color(0xFFD96C3F),
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment
+                                        .start,
+                                children: [
+                                  Text(
+                                    widget.cookbookName,
+                                    style:
+                                        const TextStyle(
+                                      fontSize: 23,
+                                      fontWeight:
+                                          FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    '${recipeNames.length} '
+                                    '${recipeNames.length == 1 ? 'recipe' : 'recipes'}'
+                                    '  •  '
+                                    '$favouriteCount '
+                                    '${favouriteCount == 1 ? 'favourite' : 'favourites'}',
+                                    style:
+                                        const TextStyle(
+                                      color:
+                                          Color(0xFF7C7470),
+                                      fontWeight:
+                                          FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 18),
-                        Text(
-                          'No recipes yet',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 10),
-                        Text(
-                          'Tap Add Recipe to create one, '
-                          'or use the Scan tab.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(
-                    16,
+                ),
+                const SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
                     20,
                     16,
-                    100,
+                    20,
+                    12,
                   ),
-                  itemCount: recipeNames.length,
-                  itemBuilder: (
-                    BuildContext context,
-                    int index,
-                  ) {
-                    final String recipeName =
-                        recipeNames[index];
-
-                    return Dismissible(
-                      key: ValueKey(
-                        '${widget.cookbookName}-$recipeName',
+                  sliver: SliverToBoxAdapter(
+                    child: Text(
+                      'Recipes',
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.bold,
                       ),
-                      direction:
-                          DismissDirection.endToStart,
-                      confirmDismiss: (_) async {
-                        await confirmDeleteRecipe(
-                          recipeName,
-                        );
-
-                        return false;
-                      },
-                      background: Container(
-                        margin: const EdgeInsets.only(
-                          bottom: 12,
-                        ),
-                        padding: const EdgeInsets.only(
-                          right: 24,
-                        ),
-                        alignment: Alignment.centerRight,
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius:
-                              BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.delete,
-                          color: Colors.white,
-                        ),
+                    ),
+                  ),
+                ),
+                if (recipeNames.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        30,
+                        10,
+                        30,
+                        100,
                       ),
-                      child: Row(
+                      child: Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
                         children: [
-                          Expanded(
-                            child: RecipeCard(
-                              cookbookName: widget.cookbookName,
-                              recipeName: recipeName,
-                              onTap: () {
-                                openRecipe(recipeName);
-                              },
+                          Icon(
+                            Icons
+                                .restaurant_menu_outlined,
+                            size: 76,
+                            color: Color(0xFFAAA19C),
+                          ),
+                          SizedBox(height: 18),
+                          Text(
+                            'No recipes yet',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Delete recipe',
-                            onPressed: () {
-                              confirmDeleteRecipe(
-                                recipeName,
-                              );
-                            },
-                            icon: const Icon(
-                              Icons.delete_outline,
+                          SizedBox(height: 10),
+                          Text(
+                            'Tap Add Recipe to create one, '
+                            'or use the Scan tab.',
+                            textAlign:
+                                TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color:
+                                  Color(0xFF7C7470),
                             ),
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding:
+                        const EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      100,
+                    ),
+                    sliver: SliverList.builder(
+                      itemCount: recipeNames.length,
+                      itemBuilder: (
+                        BuildContext context,
+                        int index,
+                      ) {
+                        final String recipeName =
+                            recipeNames[index];
+
+                        return Dismissible(
+                          key: ValueKey(
+                            '${widget.cookbookName}-$recipeName',
+                          ),
+                          direction:
+                              DismissDirection
+                                  .endToStart,
+                          confirmDismiss: (_) async {
+                            await confirmDeleteRecipe(
+                              recipeName,
+                            );
+
+                            return false;
+                          },
+                          background: Container(
+                            margin:
+                                const EdgeInsets.only(
+                              bottom: 14,
+                            ),
+                            padding:
+                                const EdgeInsets.only(
+                              right: 26,
+                            ),
+                            alignment:
+                                Alignment.centerRight,
+                            decoration: BoxDecoration(
+                              color:
+                                  Colors.red.shade400,
+                              borderRadius:
+                                  BorderRadius.circular(
+                                20,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.white,
+                              size: 30,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: RecipeCard(
+                                  cookbookName:
+                                      widget
+                                          .cookbookName,
+                                  recipeName:
+                                      recipeName,
+                                  onTap: () {
+                                    openRecipe(
+                                      recipeName,
+                                    );
+                                  },
+                                ),
+                              ),
+                              IconButton(
+                                tooltip:
+                                    'Delete recipe',
+                                onPressed: () {
+                                  confirmDeleteRecipe(
+                                    recipeName,
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }
