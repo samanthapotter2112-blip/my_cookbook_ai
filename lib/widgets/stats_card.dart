@@ -22,16 +22,16 @@ class StatsCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius:
-                    BorderRadius.circular(14),
+                color: color.withValues(
+                  alpha: 0.12,
+                ),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 icon,

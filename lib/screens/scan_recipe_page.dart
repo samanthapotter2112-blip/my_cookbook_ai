@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -152,11 +150,11 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
     } finally {
       await recogniser.close();
 
-      if (!mounted) return;
-
-      setState(() {
-        isReadingImage = false;
-      });
+      if (mounted) {
+        setState(() {
+          isReadingImage = false;
+        });
+      }
     }
   }
 
@@ -477,106 +475,90 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                       ),
                       const SizedBox(height: 22),
                       SizedBox(
-                        height: 54,
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            final String recipeName =
-                                nameController.text
-                                    .trim();
+  height: 54,
+  child: FilledButton.icon(
+    onPressed: () async {
+      final String recipeName =
+          nameController.text.trim();
 
-                            if (recipeName.isEmpty) {
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Please enter a recipe name.',
-                                  ),
-                                ),
-                              );
+      if (recipeName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please enter a recipe name.',
+            ),
+          ),
+        );
 
-                              return;
-                            }
+        return;
+      }
 
-                            final String? cookbook =
-                                await Navigator
-                                    .push<String>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const SelectCookbookPage(),
-                              ),
-                            );
+      final String? cookbook =
+    await Navigator.push<String>(
+  context,
+  MaterialPageRoute(
+    builder: (_) =>
+        const SelectCookbookPage(),
+  ),
+);
 
-                            if (cookbook == null ||
-                                !mounted) {
-                              return;
-                            }
+if (!context.mounted ||
+    cookbook == null) {
+  return;
+}
 
-                            final bool? saved =
-                                await Navigator
-                                    .push<bool>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    RecipePage(
-                                  cookbookName:
-                                      cookbook,
-                                  recipeName:
-                                      recipeName,
-                                  initialPrepTime:
-                                      prepController
-                                          .text
-                                          .trim(),
-                                  initialCookTime:
-                                      cookController
-                                          .text
-                                          .trim(),
-                                  initialServings:
-                                      servingsController
-                                          .text
-                                          .trim(),
-                                  initialIngredients:
-                                      ingredientsController
-                                          .text
-                                          .trim(),
-                                  initialMethod:
-                                      methodController
-                                          .text
-                                          .trim(),
-                                  initialPhoto:
-                                      selectedImageBytes,
-                                ),
-                              ),
-                            );
+      final bool? saved =
+          await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RecipePage(
+            cookbookName: cookbook,
+            recipeName: recipeName,
+            initialPrepTime:
+                prepController.text.trim(),
+            initialCookTime:
+                cookController.text.trim(),
+            initialServings:
+                servingsController.text.trim(),
+            initialIngredients:
+                ingredientsController.text.trim(),
+            initialMethod:
+                methodController.text.trim(),
+            initialPhoto:
+                selectedImageBytes,
+          ),
+        ),
+      );
 
-                            if (saved == true &&
-                                mounted) {
-                              Navigator.pop(
-                                bottomSheetContext,
-                              );
+      if (!mounted ||
+          !bottomSheetContext.mounted) {
+        return;
+      }
 
-                              clearScan();
+      if (saved == true) {
+        Navigator.pop(
+          bottomSheetContext,
+        );
 
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    '$recipeName added to $cookbook',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.menu_book_outlined,
-                          ),
-                          label: const Text(
-                            'Choose Cookbook and Save',
-                          ),
-                        ),
-                      ),
+        clearScan();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$recipeName added to $cookbook',
+            ),
+          ),
+        );
+      }
+    },
+    icon: const Icon(
+      Icons.menu_book_outlined,
+    ),
+    label: const Text(
+      'Choose Cookbook and Save',
+    ),
+  ),
+),
                     ],
                   ),
                 ),

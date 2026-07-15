@@ -12,7 +12,7 @@ class RecipeTags extends StatelessWidget {
     this.enabled = true,
   });
 
-  static const List<_RecipeTagOption> options = [
+  static const List<_RecipeTagOption> _options = [
     _RecipeTagOption(
       name: 'Vegetarian',
       icon: Icons.eco_outlined,
@@ -107,7 +107,7 @@ class RecipeTags extends StatelessWidget {
     return Wrap(
       spacing: 9,
       runSpacing: 9,
-      children: options.map(
+      children: _options.map(
         (_RecipeTagOption option) {
           final bool isSelected =
               selectedTags.contains(option.name);
