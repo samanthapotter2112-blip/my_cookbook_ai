@@ -25,7 +25,10 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
 
-    searchController.addListener(refreshSearchField);
+    searchController.addListener(
+      refreshSearchField,
+    );
+
     loadRecipes();
   }
 
@@ -41,7 +44,8 @@ class _SearchPageState extends State<SearchPage> {
             ? Hive.box('cookbooks')
             : await Hive.openBox('cookbooks');
 
-    final List<Map<String, dynamic>> loadedRecipes = [];
+    final List<Map<String, dynamic>>
+        loadedRecipes = [];
 
     for (final dynamic cookbookValue
         in cookbookListBox.values) {
@@ -53,24 +57,30 @@ class _SearchPageState extends State<SearchPage> {
       final Box cookbookBox =
           Hive.isBoxOpen(cookbookName)
               ? Hive.box(cookbookName)
-              : await Hive.openBox(cookbookName);
+              : await Hive.openBox(
+                  cookbookName,
+                );
 
-      for (final dynamic recipeKey in cookbookBox.keys) {
+      for (final dynamic recipeKey
+          in cookbookBox.keys) {
         final dynamic savedRecipe =
             cookbookBox.get(recipeKey);
 
-        if (savedRecipe is Map) {
-          final Map<String, dynamic> recipe =
-              Map<String, dynamic>.from(savedRecipe);
+        if (savedRecipe is! Map) continue;
 
-          recipe['name'] =
-              recipe['name']?.toString() ??
-                  recipeKey.toString();
+        final Map<String, dynamic> recipe =
+            Map<String, dynamic>.from(
+          savedRecipe,
+        );
 
-          recipe['cookbookName'] = cookbookName;
+        recipe['name'] =
+            recipe['name']?.toString() ??
+                recipeKey.toString();
 
-          loadedRecipes.add(recipe);
-        }
+        recipe['cookbookName'] =
+            cookbookName;
+
+        loadedRecipes.add(recipe);
       }
     }
 
@@ -80,12 +90,20 @@ class _SearchPageState extends State<SearchPage> {
         Map<String, dynamic> second,
       ) {
         final String firstName =
-            first['name']?.toString().toLowerCase() ?? '';
+            first['name']
+                    ?.toString()
+                    .toLowerCase() ??
+                '';
 
         final String secondName =
-            second['name']?.toString().toLowerCase() ?? '';
+            second['name']
+                    ?.toString()
+                    .toLowerCase() ??
+                '';
 
-        return firstName.compareTo(secondName);
+        return firstName.compareTo(
+          secondName,
+        );
       },
     );
 
@@ -96,7 +114,9 @@ class _SearchPageState extends State<SearchPage> {
       isLoading = false;
     });
 
-    searchRecipes(searchController.text);
+    searchRecipes(
+      searchController.text,
+    );
   }
 
   void searchRecipes(String query) {
@@ -111,7 +131,9 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       if (searchTerms.isEmpty) {
         filteredRecipes =
-            List<Map<String, dynamic>>.from(allRecipes);
+            List<Map<String, dynamic>>.from(
+          allRecipes,
+        );
 
         return;
       }
@@ -124,6 +146,7 @@ class _SearchPageState extends State<SearchPage> {
             recipe['ingredients'],
             recipe['method'],
             recipe['notes'],
+            recipe['tags'],
           ]
               .whereType<Object>()
               .join(' ')
@@ -145,17 +168,40 @@ class _SearchPageState extends State<SearchPage> {
   Uint8List? getRecipePhoto(
     Map<String, dynamic> recipe,
   ) {
-    final dynamic savedPhoto = recipe['photo'];
+    final dynamic savedPhoto =
+        recipe['photo'];
 
     if (savedPhoto is Uint8List) {
       return savedPhoto;
     }
 
     if (savedPhoto is List<int>) {
-      return Uint8List.fromList(savedPhoto);
+      return Uint8List.fromList(
+        savedPhoto,
+      );
     }
 
     return null;
+  }
+
+  List<String> getRecipeTags(
+    Map<String, dynamic> recipe,
+  ) {
+    final dynamic savedTags =
+        recipe['tags'];
+
+    if (savedTags is! List) {
+      return <String>[];
+    }
+
+    return savedTags
+        .map(
+          (dynamic tag) => tag.toString(),
+        )
+        .where(
+          (String tag) => tag.trim().isNotEmpty,
+        )
+        .toList();
   }
 
   Future<void> openRecipe(
@@ -166,7 +212,9 @@ class _SearchPageState extends State<SearchPage> {
             'Unnamed recipe';
 
     final String cookbookName =
-        recipe['cookbookName']?.toString() ?? '';
+        recipe['cookbookName']
+                ?.toString() ??
+            '';
 
     if (cookbookName.isEmpty) return;
 
@@ -199,16 +247,21 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F2),
+      backgroundColor:
+          const Color(0xFFF8F5F2),
       appBar: AppBar(
-        title: const Text('Search Recipes'),
+        title: const Text(
+          'Search Recipes',
+        ),
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             )
           : Padding(
-              padding: const EdgeInsets.fromLTRB(
+              padding:
+                  const EdgeInsets.fromLTRB(
                 16,
                 14,
                 16,
@@ -217,36 +270,52 @@ class _SearchPageState extends State<SearchPage> {
               child: Column(
                 children: [
                   TextField(
-                    controller: searchController,
+                    controller:
+                        searchController,
                     autofocus: true,
                     onChanged: searchRecipes,
-                    decoration: InputDecoration(
+                    decoration:
+                        InputDecoration(
                       hintText:
-                          'Search recipes or ingredients',
+                          'Search recipes, ingredients or tags',
                       prefixIcon:
-                          const Icon(Icons.search),
+                          const Icon(
+                        Icons.search,
+                      ),
                       suffixIcon:
-                          searchController.text.isEmpty
+                          searchController
+                                  .text
+                                  .isEmpty
                               ? null
                               : IconButton(
-                                  onPressed: clearSearch,
-                                  tooltip: 'Clear search',
-                                  icon: const Icon(
+                                  onPressed:
+                                      clearSearch,
+                                  tooltip:
+                                      'Clear search',
+                                  icon:
+                                      const Icon(
                                     Icons.clear,
                                   ),
                                 ),
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(
+                      border:
+                          OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(18),
-                        borderSide: BorderSide.none,
+                            BorderRadius.circular(
+                          18,
+                        ),
+                        borderSide:
+                            BorderSide.none,
                       ),
                       enabledBorder:
                           OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(18),
-                        borderSide: BorderSide.none,
+                            BorderRadius.circular(
+                          18,
+                        ),
+                        borderSide:
+                            BorderSide.none,
                       ),
                     ),
                   ),
@@ -257,16 +326,24 @@ class _SearchPageState extends State<SearchPage> {
                         child: Text(
                           '${filteredRecipes.length} '
                           '${filteredRecipes.length == 1 ? 'recipe' : 'recipes'} found',
-                          style: const TextStyle(
-                            color: Color(0xFF7C7470),
-                            fontWeight: FontWeight.w600,
+                          style:
+                              const TextStyle(
+                            color: Color(
+                              0xFF7C7470,
+                            ),
+                            fontWeight:
+                                FontWeight.w600,
                           ),
                         ),
                       ),
-                      if (searchController.text.isNotEmpty)
+                      if (searchController
+                          .text
+                          .isNotEmpty)
                         TextButton(
-                          onPressed: clearSearch,
-                          child: const Text('Clear'),
+                          onPressed:
+                              clearSearch,
+                          child:
+                              const Text('Clear'),
                         ),
                     ],
                   ),
@@ -278,30 +355,36 @@ class _SearchPageState extends State<SearchPage> {
                                 'No saved recipes yet',
                             message:
                                 'Add a recipe to a cookbook '
-                                'or use the Scan tab.',
-                            icon: Icons.search_off,
+                                'or use the Scan Recipe feature.',
+                            icon:
+                                Icons.search_off,
                           )
                         : filteredRecipes.isEmpty
                             ? const _EmptySearch(
                                 title:
                                     'No matching recipes',
                                 message:
-                                    'Try another recipe name '
-                                    'or ingredient.',
-                                icon:
-                                    Icons.manage_search,
+                                    'Try another recipe name, '
+                                    'ingredient or tag.',
+                                icon: Icons
+                                    .manage_search,
                               )
                             : RefreshIndicator(
-                                onRefresh: loadRecipes,
-                                child: ListView.builder(
+                                onRefresh:
+                                    loadRecipes,
+                                child:
+                                    ListView.builder(
                                   padding:
-                                      const EdgeInsets.only(
+                                      const EdgeInsets
+                                          .only(
                                     bottom: 30,
                                   ),
                                   itemCount:
-                                      filteredRecipes.length,
+                                      filteredRecipes
+                                          .length,
                                   itemBuilder: (
-                                    BuildContext context,
+                                    BuildContext
+                                        context,
                                     int index,
                                   ) {
                                     final Map<String,
@@ -342,12 +425,28 @@ class _SearchPageState extends State<SearchPage> {
                                       favourite:
                                           recipe['favourite'] ==
                                               true,
+                                      rating:
+                                          int.tryParse(
+                                                recipe['rating']
+                                                        ?.toString() ??
+                                                    '',
+                                              ) ??
+                                              0,
+                                      wouldMakeAgain:
+                                          recipe['wouldMakeAgain'] ==
+                                              true,
                                       photo:
                                           getRecipePhoto(
                                         recipe,
                                       ),
+                                      tags:
+                                          getRecipeTags(
+                                        recipe,
+                                      ),
                                       onTap: () {
-                                        openRecipe(recipe);
+                                        openRecipe(
+                                          recipe,
+                                        );
                                       },
                                     );
                                   },
@@ -361,7 +460,8 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
-class _SearchRecipeCard extends StatelessWidget {
+class _SearchRecipeCard
+    extends StatelessWidget {
   final String recipeName;
   final String cookbookName;
   final String ingredients;
@@ -369,7 +469,10 @@ class _SearchRecipeCard extends StatelessWidget {
   final String cookTime;
   final String servings;
   final bool favourite;
+  final bool wouldMakeAgain;
+  final int rating;
   final Uint8List? photo;
+  final List<String> tags;
   final VoidCallback onTap;
 
   const _SearchRecipeCard({
@@ -380,7 +483,10 @@ class _SearchRecipeCard extends StatelessWidget {
     required this.cookTime,
     required this.servings,
     required this.favourite,
+    required this.wouldMakeAgain,
+    required this.rating,
     required this.photo,
+    required this.tags,
     required this.onTap,
   });
 
@@ -388,15 +494,18 @@ class _SearchRecipeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      margin: const EdgeInsets.only(bottom: 14),
+      margin:
+          const EdgeInsets.only(bottom: 14),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius:
+            BorderRadius.circular(22),
       ),
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding:
+              const EdgeInsets.all(12),
           child: Row(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
@@ -409,11 +518,14 @@ class _SearchRecipeCard extends StatelessWidget {
                   height: 92,
                   child: photo == null
                       ? Container(
-                          color: const Color(
+                          color:
+                              const Color(
                             0xFFFFE3D5,
                           ),
-                          child: const Icon(
-                            Icons.restaurant_menu,
+                          child:
+                              const Icon(
+                            Icons
+                                .restaurant_menu,
                             size: 38,
                             color: Color(
                               0xFFD96C3F,
@@ -434,15 +546,18 @@ class _SearchRecipeCard extends StatelessWidget {
                   children: [
                     Row(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         Expanded(
                           child: Text(
                             recipeName,
                             maxLines: 2,
                             overflow:
-                                TextOverflow.ellipsis,
-                            style: const TextStyle(
+                                TextOverflow
+                                    .ellipsis,
+                            style:
+                                const TextStyle(
                               fontSize: 19,
                               fontWeight:
                                   FontWeight.bold,
@@ -453,10 +568,14 @@ class _SearchRecipeCard extends StatelessWidget {
                         if (favourite)
                           const Padding(
                             padding:
-                                EdgeInsets.only(left: 8),
+                                EdgeInsets.only(
+                              left: 8,
+                            ),
                             child: Icon(
                               Icons.favorite,
-                              color: Color(0xFFB94747),
+                              color: Color(
+                                0xFFB94747,
+                              ),
                               size: 20,
                             ),
                           ),
@@ -466,19 +585,25 @@ class _SearchRecipeCard extends StatelessWidget {
                     Row(
                       children: [
                         const Icon(
-                          Icons.menu_book_outlined,
+                          Icons
+                              .menu_book_outlined,
                           size: 16,
-                          color: Color(0xFF7C7470),
+                          color: Color(
+                            0xFF7C7470,
+                          ),
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             cookbookName,
                             overflow:
-                                TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color:
-                                  Color(0xFF7C7470),
+                                TextOverflow
+                                    .ellipsis,
+                            style:
+                                const TextStyle(
+                              color: Color(
+                                0xFF7C7470,
+                              ),
                               fontWeight:
                                   FontWeight.w600,
                             ),
@@ -486,6 +611,64 @@ class _SearchRecipeCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                                        if (rating > 0 ||
+                        wouldMakeAgain) ...[
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 7,
+                        children: [
+                          if (rating > 0)
+                            _RatingBadge(
+                              rating: rating,
+                            ),
+                          if (wouldMakeAgain)
+                            const _StatusBadge(
+                              icon: Icons.thumb_up_outlined,
+                              label: 'Would make again',
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (tags.isNotEmpty) ...[
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: tags.take(4).map(
+                          (String tag) {
+                            return Container(
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFFFE3D5,
+                                ),
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  18,
+                                ),
+                              ),
+                              child: Text(
+                                tag,
+                                style:
+                                    const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight:
+                                      FontWeight.w600,
+                                  color: Color(
+                                    0xFF9D4528,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ).toList(),
+                      ),
+                    ],
                     if (ingredients.isNotEmpty) ...[
                       const SizedBox(height: 9),
                       Text(
@@ -494,7 +677,9 @@ class _SearchRecipeCard extends StatelessWidget {
                         overflow:
                             TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF6F6864),
+                          color: Color(
+                            0xFF6F6864,
+                          ),
                           height: 1.3,
                         ),
                       ),
@@ -522,7 +707,8 @@ class _SearchRecipeCard extends StatelessWidget {
                             _SearchChip(
                               icon:
                                   Icons.people_outline,
-                              label: 'Serves $servings',
+                              label:
+                                  'Serves $servings',
                             ),
                         ],
                       ),
@@ -532,7 +718,8 @@ class _SearchRecipeCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               const Padding(
-                padding: EdgeInsets.only(top: 32),
+                padding:
+                    EdgeInsets.only(top: 32),
                 child: Icon(
                   Icons.chevron_right,
                   color: Color(0xFF8A817C),
@@ -541,6 +728,90 @@ class _SearchRecipeCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RatingBadge extends StatelessWidget {
+  final int rating;
+
+  const _RatingBadge({
+    required this.rating,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1D6),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.star_rounded,
+            size: 16,
+            color: Color(0xFFE0A12F),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$rating/5',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF8B6320),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _StatusBadge({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6EFE5),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 15,
+            color: const Color(0xFF56715A),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF56715A),
+            ),
+          ),
+        ],
       ),
     );
   }

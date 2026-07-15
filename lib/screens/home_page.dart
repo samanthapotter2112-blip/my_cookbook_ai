@@ -14,6 +14,8 @@ import 'ingredient_finder_page.dart';
 import 'meal_planner_page.dart';
 import 'scan_recipe_page.dart';
 import 'search_page.dart';
+import 'shopping_list_page.dart';
+import 'collections_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -296,22 +298,33 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> openCookbook(
-    String cookbookName,
-  ) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CookbookPage(
-          cookbookName: cookbookName,
-        ),
+  String cookbookName,
+) async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => CookbookPage(
+        cookbookName: cookbookName,
       ),
-    );
+    ),
+  );
 
-    if (!mounted) return;
+  if (!mounted) return;
 
-    setState(loadCookbooks);
-  }
+  setState(loadCookbooks);
+}
+Future<void> openCollections() async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const CollectionsPage(),
+    ),
+  );
 
+  if (!mounted) return;
+
+  setState(() {});
+}
   Future<void> openSearch() async {
     await Navigator.push(
       context,
@@ -374,6 +387,20 @@ class _HomePageState extends State<HomePage> {
       MaterialPageRoute(
         builder: (_) =>
             const MealPlannerPage(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  Future<void> openShoppingList() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const ShoppingListPage(),
       ),
     );
 
@@ -553,75 +580,88 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget buildQuickActions() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: QuickActionCard(
-                title: 'Scan Recipe',
-                subtitle: 'Add from a page',
-                icon: Icons
-                    .document_scanner_outlined,
-                backgroundColor:
-                    const Color(0xFFD96C3F),
-                foregroundColor:
-                    Colors.white,
-                onTap: openScanner,
-              ),
+  return Column(
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: QuickActionCard(
+              title: 'Scan Recipe',
+              subtitle: 'Add from a page',
+              icon: Icons.document_scanner_outlined,
+              backgroundColor: const Color(0xFFD96C3F),
+              foregroundColor: Colors.white,
+              onTap: openScanner,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: QuickActionCard(
-                title: 'Favourites',
-                subtitle: 'Recipes you love',
-                icon:
-                    Icons.favorite_outline,
-                backgroundColor:
-                    const Color(0xFFFFE8E5),
-                foregroundColor:
-                    const Color(0xFFB94747),
-                onTap: openFavourites,
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: QuickActionCard(
+              title: 'Favourites',
+              subtitle: 'Recipes you love',
+              icon: Icons.favorite_outline,
+              backgroundColor: const Color(0xFFFFE8E5),
+              foregroundColor: const Color(0xFFB94747),
+              onTap: openFavourites,
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: QuickActionCard(
-                title: 'What Can I Make?',
-                subtitle: 'Search ingredients',
-                icon: Icons
-                    .shopping_basket_outlined,
-                backgroundColor:
-                    const Color(0xFFE6EFE5),
-                foregroundColor:
-                    const Color(0xFF56715A),
-                onTap:
-                    openIngredientFinder,
-              ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: QuickActionCard(
+              title: 'What Can I Make?',
+              subtitle: 'Search ingredients',
+              icon: Icons.shopping_basket_outlined,
+              backgroundColor: const Color(0xFFE6EFE5),
+              foregroundColor: const Color(0xFF56715A),
+              onTap: openIngredientFinder,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: QuickActionCard(
-                title: 'Meal Planner',
-                subtitle: 'Plan your week',
-                icon: Icons
-                    .calendar_month_outlined,
-                backgroundColor:
-                    const Color(0xFFE9E7F4),
-                foregroundColor:
-                    const Color(0xFF625F85),
-                onTap: openMealPlanner,
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: QuickActionCard(
+              title: 'Meal Planner',
+              subtitle: 'Plan your week',
+              icon: Icons.calendar_month_outlined,
+              backgroundColor: const Color(0xFFE9E7F4),
+              foregroundColor: const Color(0xFF625F85),
+              onTap: openMealPlanner,
             ),
-          ],
-        ),
-      ],
-    );
-  }
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: QuickActionCard(
+              title: 'Collections',
+              subtitle: 'Group your recipes',
+              icon: Icons.collections_bookmark_outlined,
+              backgroundColor: const Color(0xFFE8EEF8),
+              foregroundColor: const Color(0xFF4F678A),
+              onTap: openCollections,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: QuickActionCard(
+              title: 'Shopping List',
+              subtitle: 'From your meal plan',
+              icon: Icons.shopping_cart_outlined,
+              backgroundColor: const Color(0xFFFFF1DA),
+              foregroundColor: const Color(0xFF9A6824),
+              onTap: openShoppingList,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
   Widget buildStats(
     _HomeStats stats,
