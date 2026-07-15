@@ -35,7 +35,9 @@ class QuickActionCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: foregroundColor.withOpacity(0.14),
+                  color: foregroundColor.withValues(
+                    alpha: 0.14,
+                  ),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -56,7 +58,9 @@ class QuickActionCard extends StatelessWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  color: foregroundColor.withOpacity(0.78),
+                  color: foregroundColor.withValues(
+                    alpha: 0.78,
+                  ),
                   fontSize: 13,
                 ),
               ),

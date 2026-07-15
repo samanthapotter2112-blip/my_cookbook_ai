@@ -16,6 +16,7 @@ import 'scan_recipe_page.dart';
 import 'search_page.dart';
 import 'shopping_list_page.dart';
 import 'collections_page.dart';
+import 'random_recipe_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,8 +26,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TextEditingController cookbookNameController =
-      TextEditingController();
+  final TextEditingController cookbookNameController = TextEditingController();
 
   late Box cookbookListBox;
   Box? cookbookCoversBox;
@@ -65,35 +65,22 @@ class _HomePageState extends State<HomePage> {
 
       if (value == null) continue;
 
-      final String cookbookName =
-          value.toString().trim();
+      final String cookbookName = value.toString().trim();
 
       if (cookbookName.isEmpty) continue;
 
-      loadedCookbooks.add(
-        _CookbookEntry(
-          key: key,
-          name: cookbookName,
-        ),
-      );
+      loadedCookbooks.add(_CookbookEntry(key: key, name: cookbookName));
     }
 
-    loadedCookbooks.sort(
-      (_CookbookEntry first, _CookbookEntry second) {
-        return first.name.toLowerCase().compareTo(
-              second.name.toLowerCase(),
-            );
-      },
-    );
+    loadedCookbooks.sort((_CookbookEntry first, _CookbookEntry second) {
+      return first.name.toLowerCase().compareTo(second.name.toLowerCase());
+    });
 
     cookbooks = loadedCookbooks;
   }
 
-  Uint8List? getCookbookCover(
-    String cookbookName,
-  ) {
-    final dynamic savedCover =
-        cookbookCoversBox?.get(cookbookName);
+  Uint8List? getCookbookCover(String cookbookName) {
+    final dynamic savedCover = cookbookCoversBox?.get(cookbookName);
 
     if (savedCover is Uint8List) {
       return savedCover;
@@ -106,84 +93,60 @@ class _HomePageState extends State<HomePage> {
     return null;
   }
 
-  Future<void> chooseCookbookCover(
-    String cookbookName,
-  ) async {
-    final FilePickerResult? result =
-        await FilePicker.platform.pickFiles(
+  Future<void> chooseCookbookCover(String cookbookName) async {
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       withData: true,
     );
 
     if (result == null) return;
 
-    final Uint8List? imageBytes =
-        result.files.first.bytes;
+    final Uint8List? imageBytes = result.files.first.bytes;
 
     if (imageBytes == null) return;
 
-    await cookbookCoversBox?.put(
-      cookbookName,
-      imageBytes,
-    );
+    await cookbookCoversBox?.put(cookbookName, imageBytes);
 
     if (!mounted) return;
 
     setState(() {});
   }
 
-  Future<List<int>> loadCookbookCounts(
-    String cookbookName,
-  ) async {
-    final Box cookbookBox =
-        Hive.isBoxOpen(cookbookName)
-            ? Hive.box(cookbookName)
-            : await Hive.openBox(cookbookName);
+  Future<List<int>> loadCookbookCounts(String cookbookName) async {
+    final Box cookbookBox = Hive.isBoxOpen(cookbookName)
+        ? Hive.box(cookbookName)
+        : await Hive.openBox(cookbookName);
 
     int favouriteCount = 0;
 
-    for (final dynamic value
-        in cookbookBox.values) {
-      if (value is Map &&
-          value['favourite'] == true) {
+    for (final dynamic value in cookbookBox.values) {
+      if (value is Map && value['favourite'] == true) {
         favouriteCount++;
       }
     }
 
-    return <int>[
-      cookbookBox.length,
-      favouriteCount,
-    ];
+    return <int>[cookbookBox.length, favouriteCount];
   }
 
   Future<_HomeStats> loadHomeStats() async {
     int recipeCount = 0;
     int favouriteCount = 0;
 
-    for (final _CookbookEntry cookbook
-        in cookbooks) {
-      final Box cookbookBox =
-          Hive.isBoxOpen(cookbook.name)
-              ? Hive.box(cookbook.name)
-              : await Hive.openBox(
-                  cookbook.name,
-                );
+    for (final _CookbookEntry cookbook in cookbooks) {
+      final Box cookbookBox = Hive.isBoxOpen(cookbook.name)
+          ? Hive.box(cookbook.name)
+          : await Hive.openBox(cookbook.name);
 
       recipeCount += cookbookBox.length;
 
-      for (final dynamic value
-          in cookbookBox.values) {
-        if (value is Map &&
-            value['favourite'] == true) {
+      for (final dynamic value in cookbookBox.values) {
+        if (value is Map && value['favourite'] == true) {
           favouriteCount++;
         }
       }
     }
 
-    return _HomeStats(
-      recipes: recipeCount,
-      favourites: favouriteCount,
-    );
+    return _HomeStats(recipes: recipeCount, favourites: favouriteCount);
   }
 
   String getGreeting() {
@@ -205,24 +168,17 @@ class _HomePageState extends State<HomePage> {
 
     showDialog<void>(
       context: context,
-      builder: (
-        BuildContext dialogContext,
-      ) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Add Cookbook'),
           content: TextField(
-            controller:
-                cookbookNameController,
+            controller: cookbookNameController,
             autofocus: true,
-            textCapitalization:
-                TextCapitalization.words,
-            decoration:
-                const InputDecoration(
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
               labelText: 'Cookbook name',
-              hintText:
-                  'For example: Italian Recipes',
-              prefixIcon:
-                  Icon(Icons.menu_book_outlined),
+              hintText: 'For example: Italian Recipes',
+              prefixIcon: Icon(Icons.menu_book_outlined),
             ),
             onSubmitted: (_) {
               saveCookbook(dialogContext);
@@ -231,9 +187,7 @@ class _HomePageState extends State<HomePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
               child: const Text('Cancel'),
             ),
@@ -250,41 +204,25 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> saveCookbook(
-    BuildContext dialogContext,
-  ) async {
-    final String cookbookName =
-        cookbookNameController.text.trim();
+  Future<void> saveCookbook(BuildContext dialogContext) async {
+    final String cookbookName = cookbookNameController.text.trim();
 
     if (cookbookName.isEmpty) return;
 
-    final bool alreadyExists =
-        cookbookListBox.values.any(
-      (dynamic value) {
-        return value
-                .toString()
-                .trim()
-                .toLowerCase() ==
-            cookbookName.toLowerCase();
-      },
-    );
+    final bool alreadyExists = cookbookListBox.values.any((dynamic value) {
+      return value.toString().trim().toLowerCase() ==
+          cookbookName.toLowerCase();
+    });
 
     if (alreadyExists) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            '"$cookbookName" already exists.',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"$cookbookName" already exists.')),
       );
 
       return;
     }
 
-    await cookbookListBox.add(
-      cookbookName,
-    );
+    await cookbookListBox.add(cookbookName);
 
     if (!mounted) return;
 
@@ -297,41 +235,45 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> openCookbook(
-  String cookbookName,
-) async {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => CookbookPage(
-        cookbookName: cookbookName,
-      ),
-    ),
-  );
-
-  if (!mounted) return;
-
-  setState(loadCookbooks);
-}
-Future<void> openCollections() async {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const CollectionsPage(),
-    ),
-  );
-
-  if (!mounted) return;
-
-  setState(() {});
-}
-  Future<void> openSearch() async {
+  Future<void> openCookbook(String cookbookName) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            const SearchPage(),
+        builder: (_) => CookbookPage(cookbookName: cookbookName),
       ),
+    );
+
+    if (!mounted) return;
+
+    setState(loadCookbooks);
+  }
+
+  Future<void> openCollections() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CollectionsPage()),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  Future<void> openSearch() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SearchPage()),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  Future<void> openRandomRecipe() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const RandomRecipePage()),
     );
 
     if (!mounted) return;
@@ -342,10 +284,7 @@ Future<void> openCollections() async {
   Future<void> openFavourites() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const FavouritesPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const FavouritesPage()),
     );
 
     if (!mounted) return;
@@ -356,10 +295,7 @@ Future<void> openCollections() async {
   Future<void> openScanner() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const ScanRecipePage(),
-      ),
+      MaterialPageRoute(builder: (_) => const ScanRecipePage()),
     );
 
     if (!mounted) return;
@@ -370,10 +306,7 @@ Future<void> openCollections() async {
   Future<void> openIngredientFinder() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const IngredientFinderPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const IngredientFinderPage()),
     );
 
     if (!mounted) return;
@@ -384,10 +317,7 @@ Future<void> openCollections() async {
   Future<void> openMealPlanner() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const MealPlannerPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const MealPlannerPage()),
     );
 
     if (!mounted) return;
@@ -398,10 +328,7 @@ Future<void> openCollections() async {
   Future<void> openShoppingList() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const ShoppingListPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const ShoppingListPage()),
     );
 
     if (!mounted) return;
@@ -413,15 +340,11 @@ Future<void> openCollections() async {
     required dynamic cookbookKey,
     required String cookbookName,
   }) async {
-    final bool? shouldDelete =
-        await showDialog<bool>(
+    final bool? shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (
-        BuildContext dialogContext,
-      ) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title:
-              const Text('Delete cookbook?'),
+          title: const Text('Delete cookbook?'),
           content: Text(
             'Delete "$cookbookName" and every '
             'recipe inside it? This cannot be undone.',
@@ -429,23 +352,15 @@ Future<void> openCollections() async {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  false,
-                );
+                Navigator.pop(dialogContext, false);
               },
               child: const Text('Cancel'),
             ),
             FilledButton.icon(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  true,
-                );
+                Navigator.pop(dialogContext, true);
               },
-              icon: const Icon(
-                Icons.delete_outline,
-              ),
+              icon: const Icon(Icons.delete_outline),
               label: const Text('Delete'),
             ),
           ],
@@ -455,10 +370,7 @@ Future<void> openCollections() async {
 
     if (shouldDelete != true) return;
 
-    await deleteCookbook(
-      cookbookKey: cookbookKey,
-      cookbookName: cookbookName,
-    );
+    await deleteCookbook(cookbookKey: cookbookKey, cookbookName: cookbookName);
   }
 
   Future<void> deleteCookbook({
@@ -466,49 +378,35 @@ Future<void> openCollections() async {
     required String cookbookName,
   }) async {
     if (Hive.isBoxOpen(cookbookName)) {
-      final Box cookbookBox =
-          Hive.box(cookbookName);
+      final Box cookbookBox = Hive.box(cookbookName);
 
       await cookbookBox.close();
     }
 
     if (await Hive.boxExists(cookbookName)) {
-      await Hive.deleteBoxFromDisk(
-        cookbookName,
-      );
+      await Hive.deleteBoxFromDisk(cookbookName);
     }
 
-    await cookbookCoversBox?.delete(
-      cookbookName,
-    );
+    await cookbookCoversBox?.delete(cookbookName);
 
-    await cookbookListBox.delete(
-      cookbookKey,
-    );
+    await cookbookListBox.delete(cookbookKey);
 
     if (!mounted) return;
 
     setState(loadCookbooks);
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '$cookbookName deleted',
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$cookbookName deleted')));
   }
 
   Widget buildHeader() {
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 '${getGreeting()}, Sam',
@@ -521,10 +419,7 @@ Future<void> openCollections() async {
               const SizedBox(height: 6),
               const Text(
                 'What are you cooking today?',
-                style: TextStyle(
-                  fontSize: 17,
-                  color: Color(0xFF706A66),
-                ),
+                style: TextStyle(fontSize: 17, color: Color(0xFF706A66)),
               ),
             ],
           ),
@@ -534,13 +429,9 @@ Future<void> openCollections() async {
           height: 52,
           decoration: BoxDecoration(
             color: const Color(0xFFFFE3D5),
-            borderRadius:
-                BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(18),
           ),
-          child: const Icon(
-            Icons.restaurant_menu,
-            color: Color(0xFFD96C3F),
-          ),
+          child: const Icon(Icons.restaurant_menu, color: Color(0xFFD96C3F)),
         ),
       ],
     );
@@ -548,29 +439,22 @@ Future<void> openCollections() async {
 
   Widget buildSearchBar() {
     return InkWell(
-      borderRadius:
-          BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(18),
       onTap: openSearch,
       child: IgnorePointer(
         child: TextField(
           decoration: InputDecoration(
-            hintText:
-                'Search recipes or ingredients',
-            prefixIcon:
-                const Icon(Icons.search),
-            suffixIcon:
-                const Icon(Icons.tune),
+            hintText: 'Search recipes or ingredients',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: const Icon(Icons.tune),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
-              borderRadius:
-                  BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(18),
               borderSide: BorderSide.none,
             ),
-            enabledBorder:
-                OutlineInputBorder(
-              borderRadius:
-                  BorderRadius.circular(18),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
               borderSide: BorderSide.none,
             ),
           ),
@@ -580,92 +464,102 @@ Future<void> openCollections() async {
   }
 
   Widget buildQuickActions() {
-  return Column(
-    children: [
-      Row(
-        children: [
-          Expanded(
-            child: QuickActionCard(
-              title: 'Scan Recipe',
-              subtitle: 'Add from a page',
-              icon: Icons.document_scanner_outlined,
-              backgroundColor: const Color(0xFFD96C3F),
-              foregroundColor: Colors.white,
-              onTap: openScanner,
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: QuickActionCard(
+                title: 'Scan Recipe',
+                subtitle: 'Add from a page',
+                icon: Icons.document_scanner_outlined,
+                backgroundColor: const Color(0xFFD96C3F),
+                foregroundColor: Colors.white,
+                onTap: openScanner,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: QuickActionCard(
-              title: 'Favourites',
-              subtitle: 'Recipes you love',
-              icon: Icons.favorite_outline,
-              backgroundColor: const Color(0xFFFFE8E5),
-              foregroundColor: const Color(0xFFB94747),
-              onTap: openFavourites,
+            const SizedBox(width: 12),
+            Expanded(
+              child: QuickActionCard(
+                title: 'Favourites',
+                subtitle: 'Recipes you love',
+                icon: Icons.favorite_outline,
+                backgroundColor: const Color(0xFFFFE8E5),
+                foregroundColor: const Color(0xFFB94747),
+                onTap: openFavourites,
+              ),
             ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          Expanded(
-            child: QuickActionCard(
-              title: 'What Can I Make?',
-              subtitle: 'Search ingredients',
-              icon: Icons.shopping_basket_outlined,
-              backgroundColor: const Color(0xFFE6EFE5),
-              foregroundColor: const Color(0xFF56715A),
-              onTap: openIngredientFinder,
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: QuickActionCard(
+                title: 'What Can I Make?',
+                subtitle: 'Search ingredients',
+                icon: Icons.shopping_basket_outlined,
+                backgroundColor: const Color(0xFFE6EFE5),
+                foregroundColor: const Color(0xFF56715A),
+                onTap: openIngredientFinder,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: QuickActionCard(
-              title: 'Meal Planner',
-              subtitle: 'Plan your week',
-              icon: Icons.calendar_month_outlined,
-              backgroundColor: const Color(0xFFE9E7F4),
-              foregroundColor: const Color(0xFF625F85),
-              onTap: openMealPlanner,
+            const SizedBox(width: 12),
+            Expanded(
+              child: QuickActionCard(
+                title: 'Meal Planner',
+                subtitle: 'Plan your week',
+                icon: Icons.calendar_month_outlined,
+                backgroundColor: const Color(0xFFE9E7F4),
+                foregroundColor: const Color(0xFF625F85),
+                onTap: openMealPlanner,
+              ),
             ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          Expanded(
-            child: QuickActionCard(
-              title: 'Collections',
-              subtitle: 'Group your recipes',
-              icon: Icons.collections_bookmark_outlined,
-              backgroundColor: const Color(0xFFE8EEF8),
-              foregroundColor: const Color(0xFF4F678A),
-              onTap: openCollections,
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: QuickActionCard(
+                title: 'Collections',
+                subtitle: 'Group your recipes',
+                icon: Icons.collections_bookmark_outlined,
+                backgroundColor: const Color(0xFFE8EEF8),
+                foregroundColor: const Color(0xFF4F678A),
+                onTap: openCollections,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: QuickActionCard(
-              title: 'Shopping List',
-              subtitle: 'From your meal plan',
-              icon: Icons.shopping_cart_outlined,
-              backgroundColor: const Color(0xFFFFF1DA),
-              foregroundColor: const Color(0xFF9A6824),
-              onTap: openShoppingList,
+            const SizedBox(width: 12),
+            Expanded(
+              child: QuickActionCard(
+                title: 'Shopping List',
+                subtitle: 'From your meal plan',
+                icon: Icons.shopping_cart_outlined,
+                backgroundColor: const Color(0xFFFFF1DA),
+                foregroundColor: const Color(0xFF9A6824),
+                onTap: openShoppingList,
+              ),
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: QuickActionCard(
+            title: 'Surprise Me',
+            subtitle: 'Pick a random recipe',
+            icon: Icons.casino_outlined,
+            backgroundColor: const Color(0xFFFFE8D9),
+            foregroundColor: const Color(0xFFB35B28),
+            onTap: openRandomRecipe,
           ),
-        ],
-      ),
-    ],
-  );
-}
+        ),
+      ],
+    );
+  }
 
-  Widget buildStats(
-    _HomeStats stats,
-  ) {
+  Widget buildStats(_HomeStats stats) {
     return Row(
       children: [
         Expanded(
@@ -673,8 +567,7 @@ Future<void> openCollections() async {
             icon: Icons.restaurant_menu,
             title: 'Saved recipes',
             value: stats.recipes.toString(),
-            color:
-                const Color(0xFFD96C3F),
+            color: const Color(0xFFD96C3F),
           ),
         ),
         const SizedBox(width: 12),
@@ -682,10 +575,8 @@ Future<void> openCollections() async {
           child: StatsCard(
             icon: Icons.favorite,
             title: 'Favourites',
-            value:
-                stats.favourites.toString(),
-            color:
-                const Color(0xFFB94747),
+            value: stats.favourites.toString(),
+            color: const Color(0xFFB94747),
           ),
         ),
       ],
@@ -701,224 +592,141 @@ Future<void> openCollections() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF8F5F2),
-      floatingActionButton:
-          FloatingActionButton.extended(
-        onPressed: isLoading
-            ? null
-            : showAddCookbookDialog,
+      backgroundColor: const Color(0xFFF8F5F2),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: isLoading ? null : showAddCookbookDialog,
         icon: const Icon(Icons.add),
-        label:
-            const Text('New Cookbook'),
+        label: const Text('New Cookbook'),
       ),
       body: SafeArea(
         child: isLoading
-            ? const Center(
-                child:
-                    CircularProgressIndicator(),
-              )
+            ? const Center(child: CircularProgressIndicator())
             : FutureBuilder<_HomeStats>(
                 future: loadHomeStats(),
-                builder: (
-                  BuildContext context,
-                  AsyncSnapshot<_HomeStats>
-                      snapshot,
-                ) {
-                  final _HomeStats stats =
-                      snapshot.data ??
-                          const _HomeStats(
-                            recipes: 0,
-                            favourites: 0,
-                          );
+                builder:
+                    (BuildContext context, AsyncSnapshot<_HomeStats> snapshot) {
+                      final _HomeStats stats =
+                          snapshot.data ??
+                          const _HomeStats(recipes: 0, favourites: 0);
 
-                  return CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding:
-                            const EdgeInsets
-                                .fromLTRB(
-                          20,
-                          24,
-                          20,
-                          0,
-                        ),
-                        sliver:
-                            SliverToBoxAdapter(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
-                              buildHeader(),
-                              const SizedBox(
-                                height: 24,
+                      return CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                            sliver: SliverToBoxAdapter(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  buildHeader(),
+                                  const SizedBox(height: 24),
+                                  buildSearchBar(),
+                                  const SizedBox(height: 20),
+                                  buildQuickActions(),
+                                  const SizedBox(height: 22),
+                                  buildStats(stats),
+                                  const SizedBox(height: 28),
+                                  SectionTitle(
+                                    title: 'My Cookbooks',
+                                    subtitle:
+                                        '${cookbooks.length} '
+                                        '${cookbooks.length == 1 ? 'cookbook' : 'cookbooks'}',
+                                  ),
+                                ],
                               ),
-                              buildSearchBar(),
-                              const SizedBox(
-                                height: 20,
-                              ),
-                              buildQuickActions(),
-                              const SizedBox(
-                                height: 22,
-                              ),
-                              buildStats(stats),
-                              const SizedBox(
-                                height: 28,
-                              ),
-                              SectionTitle(
-                                title:
-                                    'My Cookbooks',
-                                subtitle:
-                                    '${cookbooks.length} '
-                                    '${cookbooks.length == 1 ? 'cookbook' : 'cookbooks'}',
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-                      if (cookbooks.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child:
-                              _EmptyCookbookShelf(),
-                        )
-                      else
-                        SliverPadding(
-                          padding:
-                              const EdgeInsets
-                                  .fromLTRB(
-                            16,
-                            0,
-                            16,
-                            110,
-                          ),
-                          sliver:
-                              SliverList.builder(
-                            itemCount:
-                                cookbooks.length,
-                            itemBuilder: (
-                              BuildContext context,
-                              int index,
-                            ) {
-                              final _CookbookEntry
-                                  cookbook =
-                                  cookbooks[index];
+                          if (cookbooks.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyCookbookShelf(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                0,
+                                16,
+                                110,
+                              ),
+                              sliver: SliverList.builder(
+                                itemCount: cookbooks.length,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final _CookbookEntry cookbook =
+                                      cookbooks[index];
 
-                              return FutureBuilder<
-                                  List<int>>(
-                                future:
-                                    loadCookbookCounts(
-                                  cookbook.name,
-                                ),
-                                builder: (
-                                  BuildContext context,
-                                  AsyncSnapshot<
-                                          List<int>>
-                                      countSnapshot,
-                                ) {
-                                  final List<int>
-                                      counts =
-                                      countSnapshot
-                                              .data ??
-                                          <int>[0, 0];
+                                  return FutureBuilder<List<int>>(
+                                    future: loadCookbookCounts(cookbook.name),
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          AsyncSnapshot<List<int>>
+                                          countSnapshot,
+                                        ) {
+                                          final List<int> counts =
+                                              countSnapshot.data ?? <int>[0, 0];
 
-                                  return Dismissible(
-                                    key: ValueKey(
-                                      cookbook.key,
-                                    ),
-                                    direction:
-                                        DismissDirection
-                                            .endToStart,
-                                    confirmDismiss:
-                                        (_) async {
-                                      await confirmDeleteCookbook(
-                                        cookbookKey:
-                                            cookbook
-                                                .key,
-                                        cookbookName:
-                                            cookbook
-                                                .name,
-                                      );
+                                          return Dismissible(
+                                            key: ValueKey(cookbook.key),
+                                            direction:
+                                                DismissDirection.endToStart,
+                                            confirmDismiss: (_) async {
+                                              await confirmDeleteCookbook(
+                                                cookbookKey: cookbook.key,
+                                                cookbookName: cookbook.name,
+                                              );
 
-                                      return false;
-                                    },
-                                    background:
-                                        Container(
-                                      margin:
-                                          const EdgeInsets
-                                              .only(
-                                        bottom: 16,
-                                      ),
-                                      padding:
-                                          const EdgeInsets
-                                              .only(
-                                        right: 26,
-                                      ),
-                                      alignment:
-                                          Alignment
-                                              .centerRight,
-                                      decoration:
-                                          BoxDecoration(
-                                        color: Colors
-                                            .red
-                                            .shade400,
-                                        borderRadius:
-                                            BorderRadius
-                                                .circular(
-                                          22,
-                                        ),
-                                      ),
-                                      child:
-                                          const Icon(
-                                        Icons
-                                            .delete_outline,
-                                        color:
-                                            Colors.white,
-                                        size: 30,
-                                      ),
-                                    ),
-                                    child:
-                                        CookbookCard(
-                                      cookbookName:
-                                          cookbook.name,
-                                      cover:
-                                          getCookbookCover(
-                                        cookbook.name,
-                                      ),
-                                      recipeCount:
-                                          counts[0],
-                                      favouriteCount:
-                                          counts[1],
-                                      onTap: () {
-                                        openCookbook(
-                                          cookbook.name,
-                                        );
-                                      },
-                                      onChangeCover:
-                                          () {
-                                        chooseCookbookCover(
-                                          cookbook.name,
-                                        );
-                                      },
-                                      onDelete: () {
-                                        confirmDeleteCookbook(
-                                          cookbookKey:
-                                              cookbook.key,
-                                          cookbookName:
-                                              cookbook.name,
-                                        );
-                                      },
-                                    ),
+                                              return false;
+                                            },
+                                            background: Container(
+                                              margin: const EdgeInsets.only(
+                                                bottom: 16,
+                                              ),
+                                              padding: const EdgeInsets.only(
+                                                right: 26,
+                                              ),
+                                              alignment: Alignment.centerRight,
+                                              decoration: BoxDecoration(
+                                                color: Colors.red.shade400,
+                                                borderRadius:
+                                                    BorderRadius.circular(22),
+                                              ),
+                                              child: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.white,
+                                                size: 30,
+                                              ),
+                                            ),
+                                            child: CookbookCard(
+                                              cookbookName: cookbook.name,
+                                              cover: getCookbookCover(
+                                                cookbook.name,
+                                              ),
+                                              recipeCount: counts[0],
+                                              favouriteCount: counts[1],
+                                              onTap: () {
+                                                openCookbook(cookbook.name);
+                                              },
+                                              onChangeCover: () {
+                                                chooseCookbookCover(
+                                                  cookbook.name,
+                                                );
+                                              },
+                                              onDelete: () {
+                                                confirmDeleteCookbook(
+                                                  cookbookKey: cookbook.key,
+                                                  cookbookName: cookbook.name,
+                                                );
+                                              },
+                                            ),
+                                          );
+                                        },
                                   );
                                 },
-                              );
-                            },
-                          ),
-                        ),
-                    ],
-                  );
-                },
+                              ),
+                            ),
+                        ],
+                      );
+                    },
               ),
       ),
     );
@@ -929,38 +737,25 @@ class _CookbookEntry {
   final dynamic key;
   final String name;
 
-  const _CookbookEntry({
-    required this.key,
-    required this.name,
-  });
+  const _CookbookEntry({required this.key, required this.name});
 }
 
 class _HomeStats {
   final int recipes;
   final int favourites;
 
-  const _HomeStats({
-    required this.recipes,
-    required this.favourites,
-  });
+  const _HomeStats({required this.recipes, required this.favourites});
 }
 
-class _EmptyCookbookShelf
-    extends StatelessWidget {
+class _EmptyCookbookShelf extends StatelessWidget {
   const _EmptyCookbookShelf();
 
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.fromLTRB(
-        30,
-        20,
-        30,
-        100,
-      ),
+      padding: EdgeInsets.fromLTRB(30, 20, 30, 100),
       child: Column(
-        mainAxisAlignment:
-            MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.library_books_outlined,
@@ -971,10 +766,7 @@ class _EmptyCookbookShelf
           Text(
             'Your cookbook shelf is empty',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           SizedBox(height: 10),
           Text(
@@ -982,10 +774,7 @@ class _EmptyCookbookShelf
             'add recipes manually or scan them '
             'from a page.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF7C7470),
-            ),
+            style: TextStyle(fontSize: 16, color: Color(0xFF7C7470)),
           ),
         ],
       ),
