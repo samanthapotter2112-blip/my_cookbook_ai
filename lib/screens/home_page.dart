@@ -8,15 +8,16 @@ import '../widgets/cookbook_card.dart';
 import '../widgets/quick_action_card.dart';
 import '../widgets/section_title.dart';
 import '../widgets/stats_card.dart';
+import 'backup_restore_page.dart';
+import 'collections_page.dart';
 import 'cookbook_page.dart';
 import 'favourites_page.dart';
 import 'ingredient_finder_page.dart';
 import 'meal_planner_page.dart';
+import 'random_recipe_page.dart';
 import 'scan_recipe_page.dart';
 import 'search_page.dart';
 import 'shopping_list_page.dart';
-import 'collections_page.dart';
-import 'random_recipe_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -40,6 +41,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
 
     cookbookListBox = Hive.box('cookbooks');
+
     initialisePage();
   }
 
@@ -63,11 +65,15 @@ class _HomePageState extends State<HomePage> {
     for (final dynamic key in cookbookListBox.keys) {
       final dynamic value = cookbookListBox.get(key);
 
-      if (value == null) continue;
+      if (value == null) {
+        continue;
+      }
 
       final String cookbookName = value.toString().trim();
 
-      if (cookbookName.isEmpty) continue;
+      if (cookbookName.isEmpty) {
+        continue;
+      }
 
       loadedCookbooks.add(_CookbookEntry(key: key, name: cookbookName));
     }
@@ -99,11 +105,15 @@ class _HomePageState extends State<HomePage> {
       withData: true,
     );
 
-    if (result == null) return;
+    if (result == null) {
+      return;
+    }
 
     final Uint8List? imageBytes = result.files.first.bytes;
 
-    if (imageBytes == null) return;
+    if (imageBytes == null) {
+      return;
+    }
 
     await cookbookCoversBox?.put(cookbookName, imageBytes);
 
@@ -207,7 +217,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> saveCookbook(BuildContext dialogContext) async {
     final String cookbookName = cookbookNameController.text.trim();
 
-    if (cookbookName.isEmpty) return;
+    if (cookbookName.isEmpty) {
+      return;
+    }
 
     final bool alreadyExists = cookbookListBox.values.any((dynamic value) {
       return value.toString().trim().toLowerCase() ==
@@ -336,6 +348,21 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
+  Future<void> openBackupRestore() async {
+    final bool? restored = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const BackupRestorePage()),
+    );
+
+    if (!mounted) return;
+
+    if (restored == true) {
+      loadCookbooks();
+    }
+
+    setState(() {});
+  }
+
   Future<void> confirmDeleteCookbook({
     required dynamic cookbookKey,
     required String cookbookName,
@@ -368,7 +395,9 @@ class _HomePageState extends State<HomePage> {
       },
     );
 
-    if (shouldDelete != true) return;
+    if (shouldDelete != true) {
+      return;
+    }
 
     await deleteCookbook(cookbookKey: cookbookKey, cookbookName: cookbookName);
   }
@@ -491,7 +520,9 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+
         const SizedBox(height: 12),
+
         Row(
           children: [
             Expanded(
@@ -517,13 +548,15 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+
         const SizedBox(height: 12),
+
         Row(
           children: [
             Expanded(
               child: QuickActionCard(
                 title: 'Collections',
-                subtitle: 'Group your recipes',
+                subtitle: 'Group recipes',
                 icon: Icons.collections_bookmark_outlined,
                 backgroundColor: const Color(0xFFE8EEF8),
                 foregroundColor: const Color(0xFF4F678A),
@@ -534,7 +567,7 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: QuickActionCard(
                 title: 'Shopping List',
-                subtitle: 'From your meal plan',
+                subtitle: 'From meal plan',
                 icon: Icons.shopping_cart_outlined,
                 backgroundColor: const Color(0xFFFFF1DA),
                 foregroundColor: const Color(0xFF9A6824),
@@ -543,17 +576,33 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+
         const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: QuickActionCard(
-            title: 'Surprise Me',
-            subtitle: 'Pick a random recipe',
-            icon: Icons.casino_outlined,
-            backgroundColor: const Color(0xFFFFE8D9),
-            foregroundColor: const Color(0xFFB35B28),
-            onTap: openRandomRecipe,
-          ),
+
+        Row(
+          children: [
+            Expanded(
+              child: QuickActionCard(
+                title: 'Surprise Me',
+                subtitle: 'Random recipe',
+                icon: Icons.casino_outlined,
+                backgroundColor: const Color(0xFFFFE8D9),
+                foregroundColor: const Color(0xFFB35B28),
+                onTap: openRandomRecipe,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: QuickActionCard(
+                title: 'Backup',
+                subtitle: 'Save & Restore',
+                icon: Icons.backup_outlined,
+                backgroundColor: const Color(0xFFE8EEF8),
+                foregroundColor: const Color(0xFF4F678A),
+                onTap: openBackupRestore,
+              ),
+            ),
+          ],
         ),
       ],
     );

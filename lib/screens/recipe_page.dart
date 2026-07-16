@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../widgets/recipe_tags.dart';
 import '../widgets/star_rating.dart';
+import 'cooking_mode_page.dart';
 
 class RecipePage extends StatefulWidget {
   final String cookbookName;
@@ -39,26 +40,19 @@ class RecipePage extends StatefulWidget {
 }
 
 class _RecipePageState extends State<RecipePage> {
-  final TextEditingController pageController =
-      TextEditingController();
+  final TextEditingController pageController = TextEditingController();
 
-  final TextEditingController prepTimeController =
-      TextEditingController();
+  final TextEditingController prepTimeController = TextEditingController();
 
-  final TextEditingController cookTimeController =
-      TextEditingController();
+  final TextEditingController cookTimeController = TextEditingController();
 
-  final TextEditingController servingsController =
-      TextEditingController();
+  final TextEditingController servingsController = TextEditingController();
 
-  final TextEditingController ingredientsController =
-      TextEditingController();
+  final TextEditingController ingredientsController = TextEditingController();
 
-  final TextEditingController methodController =
-      TextEditingController();
+  final TextEditingController methodController = TextEditingController();
 
-  final TextEditingController notesController =
-      TextEditingController();
+  final TextEditingController notesController = TextEditingController();
 
   Box? cookbookBox;
 
@@ -99,61 +93,41 @@ class _RecipePageState extends State<RecipePage> {
 
     cookbookBox = box;
 
-    final dynamic savedRecipe =
-        box.get(widget.recipeName);
+    final dynamic savedRecipe = box.get(widget.recipeName);
 
     if (savedRecipe is Map) {
-      pageController.text =
-          savedRecipe['pageNumber']?.toString() ?? '';
+      pageController.text = savedRecipe['pageNumber']?.toString() ?? '';
 
-      prepTimeController.text =
-          savedRecipe['prepTime']?.toString() ?? '';
+      prepTimeController.text = savedRecipe['prepTime']?.toString() ?? '';
 
-      cookTimeController.text =
-          savedRecipe['cookTime']?.toString() ?? '';
+      cookTimeController.text = savedRecipe['cookTime']?.toString() ?? '';
 
-      servingsController.text =
-          savedRecipe['servings']?.toString() ?? '';
+      servingsController.text = savedRecipe['servings']?.toString() ?? '';
 
-      ingredientsController.text =
-          savedRecipe['ingredients']?.toString() ?? '';
+      ingredientsController.text = savedRecipe['ingredients']?.toString() ?? '';
 
-      methodController.text =
-          savedRecipe['method']?.toString() ?? '';
+      methodController.text = savedRecipe['method']?.toString() ?? '';
 
-      notesController.text =
-          savedRecipe['notes']?.toString() ?? '';
+      notesController.text = savedRecipe['notes']?.toString() ?? '';
 
-      favourite =
-          savedRecipe['favourite'] == true;
+      favourite = savedRecipe['favourite'] == true;
 
-      wouldMakeAgain =
-          savedRecipe['wouldMakeAgain'] == true;
+      wouldMakeAgain = savedRecipe['wouldMakeAgain'] == true;
 
-      rating = int.tryParse(
-            savedRecipe['rating']?.toString() ?? '',
-          ) ??
-          0;
+      rating = int.tryParse(savedRecipe['rating']?.toString() ?? '') ?? 0;
 
-      final dynamic savedTags =
-          savedRecipe['tags'];
+      final dynamic savedTags = savedRecipe['tags'];
 
       if (savedTags is List) {
-        selectedTags = savedTags
-            .map(
-              (dynamic tag) => tag.toString(),
-            )
-            .toList();
+        selectedTags = savedTags.map((dynamic tag) => tag.toString()).toList();
       }
 
-      final dynamic savedPhoto =
-          savedRecipe['photo'];
+      final dynamic savedPhoto = savedRecipe['photo'];
 
       if (savedPhoto is Uint8List) {
         recipePhoto = savedPhoto;
       } else if (savedPhoto is List<int>) {
-        recipePhoto =
-            Uint8List.fromList(savedPhoto);
+        recipePhoto = Uint8List.fromList(savedPhoto);
       }
     }
 
@@ -165,16 +139,14 @@ class _RecipePageState extends State<RecipePage> {
   }
 
   Future<void> pickRecipePhoto() async {
-    final FilePickerResult? result =
-        await FilePicker.platform.pickFiles(
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       withData: true,
     );
 
     if (result == null) return;
 
-    final Uint8List? imageBytes =
-        result.files.first.bytes;
+    final Uint8List? imageBytes = result.files.first.bytes;
 
     if (imageBytes == null) return;
 
@@ -192,22 +164,33 @@ class _RecipePageState extends State<RecipePage> {
 
     if (box == null) return;
 
-    final dynamic savedRecipe =
-        box.get(widget.recipeName);
+    final dynamic savedRecipe = box.get(widget.recipeName);
 
     if (savedRecipe is Map) {
-      final Map<String, dynamic> updatedRecipe =
-          Map<String, dynamic>.from(
+      final Map<String, dynamic> updatedRecipe = Map<String, dynamic>.from(
         savedRecipe,
       );
 
       updatedRecipe['favourite'] = favourite;
 
-      await box.put(
-        widget.recipeName,
-        updatedRecipe,
-      );
+      await box.put(widget.recipeName, updatedRecipe);
     }
+  }
+
+  Future<void> openCookingMode() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CookingModePage(
+          recipeName: widget.recipeName,
+          ingredients: ingredientsController.text,
+          method: methodController.text,
+          prepTime: prepTimeController.text,
+          cookTime: cookTimeController.text,
+          servings: servingsController.text,
+        ),
+      ),
+    );
   }
 
   Future<void> saveRecipe() async {
@@ -217,11 +200,7 @@ class _RecipePageState extends State<RecipePage> {
 
     if (box == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Cookbook storage is not ready.',
-          ),
-        ),
+        const SnackBar(content: Text('Cookbook storage is not ready.')),
       );
 
       return;
@@ -236,18 +215,12 @@ class _RecipePageState extends State<RecipePage> {
         'name': widget.recipeName.trim(),
         'cookbookName': widget.cookbookName,
         'pageNumber': pageController.text.trim(),
-        'prepTime':
-            prepTimeController.text.trim(),
-        'cookTime':
-            cookTimeController.text.trim(),
-        'servings':
-            servingsController.text.trim(),
-        'ingredients':
-            ingredientsController.text.trim(),
-        'method':
-            methodController.text.trim(),
-        'notes':
-            notesController.text.trim(),
+        'prepTime': prepTimeController.text.trim(),
+        'cookTime': cookTimeController.text.trim(),
+        'servings': servingsController.text.trim(),
+        'ingredients': ingredientsController.text.trim(),
+        'method': methodController.text.trim(),
+        'notes': notesController.text.trim(),
         'favourite': favourite,
         'rating': rating,
         'wouldMakeAgain': wouldMakeAgain,
@@ -255,33 +228,21 @@ class _RecipePageState extends State<RecipePage> {
         'photo': recipePhoto,
       };
 
-      await box.put(
-        widget.recipeName.trim(),
-        recipeData,
-      );
+      await box.put(widget.recipeName.trim(), recipeData);
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recipe saved'),
-        ),
-      );
-
-      Navigator.pop(
+      ScaffoldMessenger.of(
         context,
-        true,
-      );
+      ).showSnackBar(const SnackBar(content: Text('Recipe saved')));
+
+      Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not save recipe: $error',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save recipe: $error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -308,34 +269,22 @@ class _RecipePageState extends State<RecipePage> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(widget.recipeName),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        appBar: AppBar(title: Text(widget.recipeName)),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF8F5F2),
+      backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
         title: Text(widget.recipeName),
         actions: [
           IconButton(
-            onPressed:
-                isSaving ? null : toggleFavourite,
-            tooltip: favourite
-                ? 'Remove from favourites'
-                : 'Add to favourites',
+            onPressed: isSaving ? null : toggleFavourite,
+            tooltip: favourite ? 'Remove from favourites' : 'Add to favourites',
             icon: Icon(
-              favourite
-                  ? Icons.favorite
-                  : Icons.favorite_border,
-              color: favourite
-                  ? const Color(0xFFB94747)
-                  : null,
+              favourite ? Icons.favorite : Icons.favorite_border,
+              color: favourite ? const Color(0xFFB94747) : null,
             ),
           ),
         ],
@@ -343,53 +292,48 @@ class _RecipePageState extends State<RecipePage> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            16,
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           decoration: const BoxDecoration(
             color: Color(0xFFF8F5F2),
-            border: Border(
-              top: BorderSide(
-                color: Color(0xFFE7DFDA),
-              ),
-            ),
+            border: Border(top: BorderSide(color: Color(0xFFE7DFDA))),
           ),
-          child: SizedBox(
-            height: 54,
-            child: FilledButton.icon(
-              onPressed:
-                  isSaving ? null : saveRecipe,
-              icon: isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child:
-                          CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Icon(
-                      Icons.save_outlined,
-                    ),
-              label: Text(
-                isSaving
-                    ? 'Saving...'
-                    : 'Save Recipe',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: isSaving ? null : openCookingMode,
+                  icon: const Icon(Icons.restaurant_menu),
+                  label: const Text(
+                    'Start Cooking',
+                    style: TextStyle(fontSize: 17),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: isSaving ? null : saveRecipe,
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(isSaving ? 'Saving...' : 'Save Recipe'),
+                ),
+              ),
+            ],
           ),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          20,
-          12,
-          20,
-          30,
-        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
         children: [
           _RecipePhotoHeader(
             recipeName: widget.recipeName,
@@ -402,10 +346,8 @@ class _RecipePageState extends State<RecipePage> {
             children: [
               Expanded(
                 child: _SummaryField(
-                  controller:
-                      prepTimeController,
-                  icon:
-                      Icons.schedule_outlined,
+                  controller: prepTimeController,
+                  icon: Icons.schedule_outlined,
                   label: 'Prep',
                   hintText: '20 mins',
                 ),
@@ -413,10 +355,8 @@ class _RecipePageState extends State<RecipePage> {
               const SizedBox(width: 10),
               Expanded(
                 child: _SummaryField(
-                  controller:
-                      cookTimeController,
-                  icon: Icons
-                      .local_fire_department_outlined,
+                  controller: cookTimeController,
+                  icon: Icons.local_fire_department_outlined,
                   label: 'Cook',
                   hintText: '35 mins',
                 ),
@@ -424,10 +364,8 @@ class _RecipePageState extends State<RecipePage> {
               const SizedBox(width: 10),
               Expanded(
                 child: _SummaryField(
-                  controller:
-                      servingsController,
-                  icon:
-                      Icons.people_outline,
+                  controller: servingsController,
+                  icon: Icons.people_outline,
                   label: 'Serves',
                   hintText: '4',
                 ),
@@ -437,18 +375,14 @@ class _RecipePageState extends State<RecipePage> {
           const SizedBox(height: 16),
           _RecipeSectionCard(
             title: 'Your rating',
-            icon:
-                Icons.star_outline_rounded,
+            icon: Icons.star_outline_rounded,
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 StarRating(
                   rating: rating,
                   enabled: !isSaving,
-                  onChanged: (
-                    int newRating,
-                  ) {
+                  onChanged: (int newRating) {
                     setState(() {
                       rating = newRating;
                     });
@@ -456,40 +390,27 @@ class _RecipePageState extends State<RecipePage> {
                 ),
                 const SizedBox(height: 10),
                 SwitchListTile.adaptive(
-                  contentPadding:
-                      EdgeInsets.zero,
+                  contentPadding: EdgeInsets.zero,
                   value: wouldMakeAgain,
-                  activeTrackColor:
-                      const Color(0xFFD96C3F),
+                  activeTrackColor: const Color(0xFFD96C3F),
                   title: const Text(
                     'Would make again',
-                    style: TextStyle(
-                      fontWeight:
-                          FontWeight.w600,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: const Text(
                     'Mark this as a recipe worth repeating.',
                   ),
                   secondary: Icon(
-                    wouldMakeAgain
-                        ? Icons.thumb_up
-                        : Icons
-                            .thumb_up_outlined,
+                    wouldMakeAgain ? Icons.thumb_up : Icons.thumb_up_outlined,
                     color: wouldMakeAgain
-                        ? const Color(
-                            0xFFD96C3F,
-                          )
-                        : const Color(
-                            0xFF7C7470,
-                          ),
+                        ? const Color(0xFFD96C3F)
+                        : const Color(0xFF7C7470),
                   ),
                   onChanged: isSaving
                       ? null
                       : (bool value) {
                           setState(() {
-                            wouldMakeAgain =
-                                value;
+                            wouldMakeAgain = value;
                           });
                         },
                 ),
@@ -503,9 +424,7 @@ class _RecipePageState extends State<RecipePage> {
             child: RecipeTags(
               selectedTags: selectedTags,
               enabled: !isSaving,
-              onChanged: (
-                List<String> tags,
-              ) {
+              onChanged: (List<String> tags) {
                 setState(() {
                   selectedTags = tags;
                 });
@@ -515,38 +434,27 @@ class _RecipePageState extends State<RecipePage> {
           const SizedBox(height: 16),
           _RecipeSectionCard(
             title: 'Cookbook details',
-            icon:
-                Icons.menu_book_outlined,
+            icon: Icons.menu_book_outlined,
             child: TextField(
               controller: pageController,
-              decoration:
-                  const InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Page number',
-                hintText:
-                    'For example: 42',
-                prefixIcon: Icon(
-                  Icons.numbers_outlined,
-                ),
+                hintText: 'For example: 42',
+                prefixIcon: Icon(Icons.numbers_outlined),
               ),
             ),
           ),
           const SizedBox(height: 16),
           _RecipeSectionCard(
             title: 'Ingredients',
-            icon: Icons
-                .shopping_basket_outlined,
+            icon: Icons.shopping_basket_outlined,
             child: TextField(
-              controller:
-                  ingredientsController,
+              controller: ingredientsController,
               minLines: 7,
               maxLines: 14,
-              textCapitalization:
-                  TextCapitalization
-                      .sentences,
-              decoration:
-                  const InputDecoration(
-                hintText:
-                    'Enter one ingredient per line',
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Enter one ingredient per line',
                 alignLabelWithHint: true,
               ),
             ),
@@ -554,19 +462,14 @@ class _RecipePageState extends State<RecipePage> {
           const SizedBox(height: 16),
           _RecipeSectionCard(
             title: 'Method',
-            icon:
-                Icons.format_list_numbered,
+            icon: Icons.format_list_numbered,
             child: TextField(
               controller: methodController,
               minLines: 9,
               maxLines: 18,
-              textCapitalization:
-                  TextCapitalization
-                      .sentences,
-              decoration:
-                  const InputDecoration(
-                hintText:
-                    'Enter the cooking instructions',
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Enter the cooking instructions',
                 alignLabelWithHint: true,
               ),
             ),
@@ -574,19 +477,14 @@ class _RecipePageState extends State<RecipePage> {
           const SizedBox(height: 16),
           _RecipeSectionCard(
             title: 'Notes',
-            icon:
-                Icons.sticky_note_2_outlined,
+            icon: Icons.sticky_note_2_outlined,
             child: TextField(
               controller: notesController,
               minLines: 4,
               maxLines: 9,
-              textCapitalization:
-                  TextCapitalization
-                      .sentences,
-              decoration:
-                  const InputDecoration(
-                hintText:
-                    'Add changes, tips or reminders',
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Add changes, tips or reminders',
                 alignLabelWithHint: true,
               ),
             ),
@@ -597,8 +495,7 @@ class _RecipePageState extends State<RecipePage> {
   }
 }
 
-class _RecipePhotoHeader
-    extends StatelessWidget {
+class _RecipePhotoHeader extends StatelessWidget {
   final String recipeName;
   final String cookbookName;
   final Uint8List? recipePhoto;
@@ -617,13 +514,9 @@ class _RecipePhotoHeader
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
             onTap: onTap,
@@ -632,65 +525,45 @@ class _RecipePhotoHeader
               height: 240,
               child: recipePhoto == null
                   ? Container(
-                      color: const Color(
-                        0xFFFFE3D5,
-                      ),
+                      color: const Color(0xFFFFE3D5),
                       child: const Column(
-                        mainAxisAlignment:
-                            MainAxisAlignment
-                                .center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons
-                                .add_a_photo_outlined,
+                            Icons.add_a_photo_outlined,
                             size: 54,
-                            color: Color(
-                              0xFFD96C3F,
-                            ),
+                            color: Color(0xFFD96C3F),
                           ),
                           SizedBox(height: 12),
                           Text(
                             'Add recipe photo',
                             style: TextStyle(
-                              color: Color(
-                                0xFFD96C3F,
-                              ),
+                              color: Color(0xFFD96C3F),
                               fontSize: 17,
-                              fontWeight:
-                                  FontWeight.w700,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           SizedBox(height: 4),
                           Text(
                             'Tap to choose an image',
-                            style: TextStyle(
-                              color: Color(
-                                0xFF8B6C5E,
-                              ),
-                            ),
+                            style: TextStyle(color: Color(0xFF8B6C5E)),
                           ),
                         ],
                       ),
                     )
-                  : Image.memory(
-                      recipePhoto!,
-                      fit: BoxFit.cover,
-                    ),
+                  : Image.memory(recipePhoto!, fit: BoxFit.cover),
             ),
           ),
           Padding(
-            padding:
-                const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(18),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   recipeName,
                   style: const TextStyle(
                     fontSize: 26,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     height: 1.15,
                   ),
                 ),
@@ -700,20 +573,15 @@ class _RecipePhotoHeader
                     const Icon(
                       Icons.menu_book_outlined,
                       size: 18,
-                      color:
-                          Color(0xFF7C7470),
+                      color: Color(0xFF7C7470),
                     ),
                     const SizedBox(width: 7),
                     Expanded(
                       child: Text(
                         cookbookName,
-                        style:
-                            const TextStyle(
-                          color: Color(
-                            0xFF7C7470,
-                          ),
-                          fontWeight:
-                              FontWeight.w600,
+                        style: const TextStyle(
+                          color: Color(0xFF7C7470),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -728,8 +596,7 @@ class _RecipePhotoHeader
   }
 }
 
-class _SummaryField
-    extends StatelessWidget {
+class _SummaryField extends StatelessWidget {
   final TextEditingController controller;
   final IconData icon;
   final String label;
@@ -748,29 +615,16 @@ class _SummaryField
       margin: EdgeInsets.zero,
       elevation: 1,
       child: Padding(
-        padding:
-            const EdgeInsets.fromLTRB(
-          10,
-          13,
-          10,
-          10,
-        ),
+        padding: const EdgeInsets.fromLTRB(10, 13, 10, 10),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color:
-                  const Color(0xFFD96C3F),
-            ),
+            Icon(icon, size: 22, color: const Color(0xFFD96C3F)),
             const SizedBox(height: 7),
             Text(
               label,
               style: const TextStyle(
-                color:
-                    Color(0xFF7C7470),
-                fontWeight:
-                    FontWeight.w600,
+                color: Color(0xFF7C7470),
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 7),
@@ -780,9 +634,7 @@ class _SummaryField
               decoration: InputDecoration(
                 hintText: hintText,
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets
-                        .symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 11,
                 ),
@@ -795,8 +647,7 @@ class _SummaryField
   }
 }
 
-class _RecipeSectionCard
-    extends StatelessWidget {
+class _RecipeSectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
@@ -813,42 +664,27 @@ class _RecipeSectionCard
       margin: EdgeInsets.zero,
       elevation: 1,
       child: Padding(
-        padding:
-            const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
                   width: 38,
                   height: 38,
-                  decoration:
-                      BoxDecoration(
-                    color: const Color(
-                      0xFFFFE3D5,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      12,
-                    ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFE3D5),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    icon,
-                    size: 21,
-                    color: const Color(
-                      0xFFD96C3F,
-                    ),
-                  ),
+                  child: Icon(icon, size: 21, color: const Color(0xFFD96C3F)),
                 ),
                 const SizedBox(width: 11),
                 Text(
                   title,
                   style: const TextStyle(
                     fontSize: 20,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
