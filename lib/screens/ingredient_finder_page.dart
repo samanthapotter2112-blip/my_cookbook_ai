@@ -3,24 +3,20 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import '../services/ingredient_matcher.dart';
 import 'recipe_page.dart';
 
 class IngredientFinderPage extends StatefulWidget {
   const IngredientFinderPage({super.key});
 
   @override
-  State<IngredientFinderPage> createState() =>
-      _IngredientFinderPageState();
+  State<IngredientFinderPage> createState() => _IngredientFinderPageState();
 }
 
-class _IngredientFinderPageState
-    extends State<IngredientFinderPage> {
-  final TextEditingController ingredientsController =
-      TextEditingController();
+class _IngredientFinderPageState extends State<IngredientFinderPage> {
+  final TextEditingController ingredientsController = TextEditingController();
 
   List<Map<String, dynamic>> allRecipes = [];
-  List<Map<String, dynamic>> matchingRecipes = [];
+  List<_IngredientMatch> matchingRecipes = [];
 
   bool isLoading = true;
   bool hasSearched = false;
@@ -29,61 +25,56 @@ class _IngredientFinderPageState
   void initState() {
     super.initState();
 
-    ingredientsController.addListener(
-      refreshPage,
-    );
-
     loadRecipes();
   }
 
-  void refreshPage() {
-    if (!mounted) return;
-
-    setState(() {});
-  }
-
   Future<void> loadRecipes() async {
-    final Box cookbookListBox =
-        Hive.isBoxOpen('cookbooks')
-            ? Hive.box('cookbooks')
-            : await Hive.openBox('cookbooks');
+    final Box cookbookListBox = Hive.isBoxOpen('cookbooks')
+        ? Hive.box('cookbooks')
+        : await Hive.openBox('cookbooks');
 
     final List<Map<String, dynamic>> loadedRecipes = [];
 
-    for (final dynamic cookbookValue
-        in cookbookListBox.values) {
-      final String cookbookName =
-          cookbookValue.toString().trim();
+    for (final dynamic cookbookValue in cookbookListBox.values) {
+      final String cookbookName = cookbookValue.toString().trim();
 
-      if (cookbookName.isEmpty) continue;
+      if (cookbookName.isEmpty) {
+        continue;
+      }
 
-      final Box cookbookBox =
-          Hive.isBoxOpen(cookbookName)
-              ? Hive.box(cookbookName)
-              : await Hive.openBox(cookbookName);
+      final Box cookbookBox = Hive.isBoxOpen(cookbookName)
+          ? Hive.box(cookbookName)
+          : await Hive.openBox(cookbookName);
 
-      for (final dynamic recipeKey
-          in cookbookBox.keys) {
-        final dynamic savedRecipe =
-            cookbookBox.get(recipeKey);
+      for (final dynamic recipeKey in cookbookBox.keys) {
+        final dynamic savedRecipe = cookbookBox.get(recipeKey);
 
-        if (savedRecipe is! Map) continue;
+        if (savedRecipe is! Map) {
+          continue;
+        }
 
-        final Map<String, dynamic> recipe =
-            Map<String, dynamic>.from(
+        final Map<String, dynamic> recipe = Map<String, dynamic>.from(
           savedRecipe,
         );
 
-        recipe['name'] =
-            recipe['name']?.toString() ??
-                recipeKey.toString();
+        recipe['name'] = recipe['name']?.toString() ?? recipeKey.toString();
 
-        recipe['cookbookName'] =
-            cookbookName;
+        recipe['cookbookName'] = cookbookName;
 
         loadedRecipes.add(recipe);
       }
     }
+
+    loadedRecipes.sort((
+      Map<String, dynamic> first,
+      Map<String, dynamic> second,
+    ) {
+      final String firstName = first['name']?.toString().toLowerCase() ?? '';
+
+      final String secondName = second['name']?.toString().toLowerCase() ?? '';
+
+      return firstName.compareTo(secondName);
+    });
 
     if (!mounted) return;
 
@@ -93,193 +84,127 @@ class _IngredientFinderPageState
     });
   }
 
-  List<String> getEnteredIngredients() {
-    return ingredientsController.text
-        .split(RegExp(r'[\n,]+'))
-        .map(
-          (String ingredient) =>
-              ingredient.trim(),
-        )
-        .where(
-          (String ingredient) =>
-              ingredient.isNotEmpty,
-        )
-        .toSet()
-        .toList();
-  }
+  Future<void> loadFromPantry() async {
+    final Box pantryBox = Hive.isBoxOpen('pantry')
+        ? Hive.box('pantry')
+        : await Hive.openBox('pantry');
 
-  List<String> getRecipeIngredientLines(
-    String ingredients,
-  ) {
-    return ingredients
-        .split('\n')
-        .map(
-          (String ingredient) =>
-              ingredient.trim(),
-        )
-        .where(
-          (String ingredient) =>
-              ingredient.isNotEmpty,
-        )
-        .toList();
-  }
+    final List<String> inStockIngredients =
+        pantryBox.keys
+            .where((dynamic key) => pantryBox.get(key) == true)
+            .map((dynamic key) => key.toString().trim())
+            .where((String ingredient) => ingredient.isNotEmpty)
+            .toList()
+          ..sort((String first, String second) {
+            return first.toLowerCase().compareTo(second.toLowerCase());
+          });
 
-  void findRecipes() {
-    final List<String> enteredIngredients =
-        getEnteredIngredients();
+    if (!mounted) return;
 
-    if (enteredIngredients.isEmpty) {
+    if (inStockIngredients.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Enter at least one ingredient.',
-          ),
-        ),
+        const SnackBar(content: Text('No in-stock pantry ingredients found.')),
       );
 
       return;
     }
 
-    final List<Map<String, dynamic>> results = [];
+    ingredientsController.text = inStockIngredients.join(', ');
 
-    for (final Map<String, dynamic> recipe
-        in allRecipes) {
-      final String recipeIngredients =
-          recipe['ingredients']
-                  ?.toString()
-                  .trim() ??
-              '';
+    searchRecipes();
+  }
 
-      if (recipeIngredients.isEmpty) continue;
+  void searchRecipes() {
+    final List<String> availableIngredients = _parseEnteredIngredients(
+      ingredientsController.text,
+    );
+
+    if (availableIngredients.isEmpty) {
+      setState(() {
+        matchingRecipes = [];
+        hasSearched = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter at least one ingredient.')),
+      );
+
+      return;
+    }
+
+    final List<_IngredientMatch> results = [];
+
+    for (final Map<String, dynamic> recipe in allRecipes) {
+      final String ingredientsText =
+          recipe['ingredients']?.toString().trim() ?? '';
+
+      if (ingredientsText.isEmpty) {
+        continue;
+      }
+
+      final List<String> recipeIngredients = _parseRecipeIngredients(
+        ingredientsText,
+      );
+
+      if (recipeIngredients.isEmpty) {
+        continue;
+      }
 
       final List<String> matchedIngredients = [];
       final List<String> missingIngredients = [];
 
-      for (final String enteredIngredient
-          in enteredIngredients) {
-        final bool matches =
-            IngredientMatcher.matches(
-          enteredIngredient:
-              enteredIngredient,
-          recipeIngredients:
-              recipeIngredients,
-        );
+      for (final String recipeIngredient in recipeIngredients) {
+        final bool isAvailable = availableIngredients.any((
+          String availableIngredient,
+        ) {
+          return _ingredientsMatch(recipeIngredient, availableIngredient);
+        });
 
-        if (matches) {
-          matchedIngredients.add(
-            enteredIngredient,
-          );
+        if (isAvailable) {
+          matchedIngredients.add(recipeIngredient);
+        } else {
+          missingIngredients.add(recipeIngredient);
         }
       }
 
-      if (matchedIngredients.isEmpty) continue;
-
-      final List<String> recipeIngredientLines =
-          getRecipeIngredientLines(
-        recipeIngredients,
-      );
-
-      for (final String recipeIngredient
-          in recipeIngredientLines) {
-        final bool available =
-            enteredIngredients.any(
-          (String enteredIngredient) {
-            return IngredientMatcher.matches(
-              enteredIngredient:
-                  enteredIngredient,
-              recipeIngredients:
-                  recipeIngredient,
-            );
-          },
-        );
-
-        if (!available) {
-          missingIngredients.add(
-            recipeIngredient,
-          );
-        }
+      if (matchedIngredients.isEmpty) {
+        continue;
       }
 
       final double matchPercentage =
-          enteredIngredients.isEmpty
-              ? 0
-              : matchedIngredients.length /
-                  enteredIngredients.length;
+          matchedIngredients.length / recipeIngredients.length;
 
-      final Map<String, dynamic> result =
-          Map<String, dynamic>.from(
-        recipe,
+      results.add(
+        _IngredientMatch(
+          recipe: recipe,
+          matchedIngredients: matchedIngredients,
+          missingIngredients: missingIngredients,
+          matchPercentage: matchPercentage,
+        ),
       );
-
-      result['matchedIngredients'] =
-          matchedIngredients;
-
-      result['missingIngredients'] =
-          missingIngredients;
-
-      result['matchCount'] =
-          matchedIngredients.length;
-
-      result['enteredCount'] =
-          enteredIngredients.length;
-
-      result['matchPercentage'] =
-          matchPercentage;
-
-      results.add(result);
     }
 
-    results.sort(
-      (
-        Map<String, dynamic> first,
-        Map<String, dynamic> second,
-      ) {
-        final double firstPercentage =
-            first['matchPercentage'] as double;
+    results.sort((_IngredientMatch first, _IngredientMatch second) {
+      final int percentageComparison = second.matchPercentage.compareTo(
+        first.matchPercentage,
+      );
 
-        final double secondPercentage =
-            second['matchPercentage'] as double;
+      if (percentageComparison != 0) {
+        return percentageComparison;
+      }
 
-        if (firstPercentage !=
-            secondPercentage) {
-          return secondPercentage.compareTo(
-            firstPercentage,
-          );
-        }
+      final int missingComparison = first.missingIngredients.length.compareTo(
+        second.missingIngredients.length,
+      );
 
-        final int firstMissing =
-            (first['missingIngredients']
-                    as List)
-                .length;
+      if (missingComparison != 0) {
+        return missingComparison;
+      }
 
-        final int secondMissing =
-            (second['missingIngredients']
-                    as List)
-                .length;
-
-        if (firstMissing != secondMissing) {
-          return firstMissing.compareTo(
-            secondMissing,
-          );
-        }
-
-        final String firstName =
-            first['name']
-                    ?.toString()
-                    .toLowerCase() ??
-                '';
-
-        final String secondName =
-            second['name']
-                    ?.toString()
-                    .toLowerCase() ??
-                '';
-
-        return firstName.compareTo(
-          secondName,
-        );
-      },
-    );
+      return first.recipeName.toLowerCase().compareTo(
+        second.recipeName.toLowerCase(),
+      );
+    });
 
     setState(() {
       matchingRecipes = results;
@@ -287,7 +212,106 @@ class _IngredientFinderPageState
     });
   }
 
-  void clearSearch() {
+  List<String> _parseEnteredIngredients(String value) {
+    return value
+        .split(RegExp(r'[,\n;]+'))
+        .map(_normaliseIngredient)
+        .where((String ingredient) => ingredient.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  List<String> _parseRecipeIngredients(String value) {
+    return value
+        .split('\n')
+        .map((String ingredient) => ingredient.trim())
+        .where((String ingredient) => ingredient.isNotEmpty)
+        .toList();
+  }
+
+  String _normaliseIngredient(String value) {
+    String normalised = value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\(\)\[\]\{\}]'), ' ')
+        .replaceAll(RegExp(r'[^\w\s-]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    normalised = normalised.replaceFirst(RegExp(r'^\d+([\/.]\d+)?\s*'), '');
+
+    const List<String> measurements = [
+      'g',
+      'kg',
+      'ml',
+      'l',
+      'tsp',
+      'tbsp',
+      'teaspoon',
+      'teaspoons',
+      'tablespoon',
+      'tablespoons',
+      'cup',
+      'cups',
+      'oz',
+      'lb',
+      'lbs',
+      'pinch',
+      'handful',
+      'slice',
+      'slices',
+      'clove',
+      'cloves',
+      'tin',
+      'tins',
+      'can',
+      'cans',
+      'packet',
+      'packets',
+    ];
+
+    final List<String> words = normalised.split(' ');
+
+    while (words.isNotEmpty && measurements.contains(words.first)) {
+      words.removeAt(0);
+    }
+
+    return words.join(' ').trim();
+  }
+
+  bool _ingredientsMatch(String recipeIngredient, String availableIngredient) {
+    final String normalisedRecipe = _normaliseIngredient(recipeIngredient);
+
+    final String normalisedAvailable = _normaliseIngredient(
+      availableIngredient,
+    );
+
+    if (normalisedRecipe.isEmpty || normalisedAvailable.isEmpty) {
+      return false;
+    }
+
+    if (normalisedRecipe == normalisedAvailable) {
+      return true;
+    }
+
+    if (normalisedRecipe.contains(normalisedAvailable) ||
+        normalisedAvailable.contains(normalisedRecipe)) {
+      return true;
+    }
+
+    final Set<String> recipeWords = normalisedRecipe
+        .split(' ')
+        .where((String word) => word.length > 2)
+        .toSet();
+
+    final Set<String> availableWords = normalisedAvailable
+        .split(' ')
+        .where((String word) => word.length > 2)
+        .toSet();
+
+    return recipeWords.intersection(availableWords).isNotEmpty;
+  }
+
+  void clearIngredients() {
     ingredientsController.clear();
 
     setState(() {
@@ -296,44 +320,13 @@ class _IngredientFinderPageState
     });
   }
 
-  Uint8List? getRecipePhoto(
-    Map<String, dynamic> recipe,
-  ) {
-    final dynamic savedPhoto = recipe['photo'];
-
-    if (savedPhoto is Uint8List) {
-      return savedPhoto;
-    }
-
-    if (savedPhoto is List<int>) {
-      return Uint8List.fromList(
-        savedPhoto,
-      );
-    }
-
-    return null;
-  }
-
-  Future<void> openRecipe(
-    Map<String, dynamic> recipe,
-  ) async {
-    final String recipeName =
-        recipe['name']?.toString() ??
-            'Unnamed recipe';
-
-    final String cookbookName =
-        recipe['cookbookName']
-                ?.toString() ??
-            '';
-
-    if (cookbookName.isEmpty) return;
-
+  Future<void> openRecipe(_IngredientMatch match) async {
     await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => RecipePage(
-          cookbookName: cookbookName,
-          recipeName: recipeName,
+          cookbookName: match.cookbookName,
+          recipeName: match.recipeName,
         ),
       ),
     );
@@ -342,72 +335,131 @@ class _IngredientFinderPageState
 
     await loadRecipes();
 
-    if (hasSearched) {
-      findRecipes();
+    if (ingredientsController.text.trim().isNotEmpty) {
+      searchRecipes();
     }
+  }
+
+  Uint8List? getRecipePhoto(Map<String, dynamic> recipe) {
+    final dynamic savedPhoto = recipe['photo'];
+
+    if (savedPhoto is Uint8List) {
+      return savedPhoto;
+    }
+
+    if (savedPhoto is List<int>) {
+      return Uint8List.fromList(savedPhoto);
+    }
+
+    return null;
   }
 
   @override
   void dispose() {
-    ingredientsController.removeListener(
-      refreshPage,
-    );
-
     ingredientsController.dispose();
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool hasIngredients =
-        ingredientsController.text
-            .trim()
-            .isNotEmpty;
-
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF8F5F2),
-      appBar: AppBar(
-        title: const Text(
-          'What Can I Make?',
-        ),
-        actions: [
-          if (hasIngredients)
-            IconButton(
-              tooltip: 'Clear',
-              onPressed: clearSearch,
-              icon: const Icon(
-                Icons.clear,
-              ),
-            ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF8F5F2),
+      appBar: AppBar(title: const Text('What Can I Make?')),
       body: isLoading
-          ? const Center(
-              child:
-                  CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding:
-                  const EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                30,
-              ),
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
               children: [
-                _IngredientEntryCard(
-                  controller:
-                      ingredientsController,
-                  onSearch: findRecipes,
+                const _IngredientFinderHeader(),
+                const SizedBox(height: 18),
+                Card(
+                  margin: EdgeInsets.zero,
+                  elevation: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Available ingredients',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Enter ingredients separated by commas or put each one on a new line.',
+                          style: TextStyle(
+                            color: Color(0xFF7C7470),
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: loadFromPantry,
+                            icon: const Icon(Icons.kitchen_outlined),
+                            label: const Text('Use My Pantry'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: ingredientsController,
+                          minLines: 4,
+                          maxLines: 8,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: InputDecoration(
+                            hintText: 'Chicken, onion, garlic, rice',
+                            prefixIcon: const Padding(
+                              padding: EdgeInsets.only(bottom: 72),
+                              child: Icon(Icons.shopping_basket_outlined),
+                            ),
+                            suffixIcon: ingredientsController.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: 'Clear',
+                                    onPressed: clearIngredients,
+                                    icon: const Icon(Icons.clear),
+                                  ),
+                          ),
+                          onChanged: (_) {
+                            setState(() {});
+                          },
+                          onSubmitted: (_) {
+                            searchRecipes();
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton.icon(
+                            onPressed: searchRecipes,
+                            icon: const Icon(Icons.search),
+                            label: const Text('Find Recipes'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 22),
                 if (!hasSearched)
-                  const _IngredientHelp()
-                else if (matchingRecipes
-                    .isEmpty)
-                  const _NoMatches()
+                  const _IngredientFinderEmptyState(
+                    icon: Icons.restaurant_menu,
+                    title: 'Find recipes from your cookbooks',
+                    message:
+                        'Enter what you have available or load the ingredients currently marked in stock in your pantry.',
+                  )
+                else if (matchingRecipes.isEmpty)
+                  const _IngredientFinderEmptyState(
+                    icon: Icons.search_off,
+                    title: 'No matching recipes',
+                    message:
+                        'Try adding more ingredients or using broader names such as chicken, pasta or cheese.',
+                  )
                 else ...[
                   Row(
                     children: [
@@ -415,63 +467,23 @@ class _IngredientFinderPageState
                         child: Text(
                           '${matchingRecipes.length} '
                           '${matchingRecipes.length == 1 ? 'recipe' : 'recipes'} found',
-                          style:
-                              const TextStyle(
+                          style: const TextStyle(
                             fontSize: 22,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: clearSearch,
-                        child:
-                            const Text('Clear'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  ...matchingRecipes.map(
-                    (
-                      Map<String, dynamic>
-                          recipe,
-                    ) {
-                      return _IngredientResultCard(
-                        recipeName:
-                            recipe['name']
-                                    ?.toString() ??
-                                'Unnamed recipe',
-                        cookbookName:
-                            recipe['cookbookName']
-                                    ?.toString() ??
-                                '',
-                        photo:
-                            getRecipePhoto(
-                          recipe,
-                        ),
-                        matchedIngredients:
-                            List<String>.from(
-                          recipe[
-                              'matchedIngredients'],
-                        ),
-                        missingIngredients:
-                            List<String>.from(
-                          recipe[
-                              'missingIngredients'],
-                        ),
-                        matchCount:
-                            recipe['matchCount']
-                                as int,
-                        enteredCount:
-                            recipe[
-                                'enteredCount']
-                                as int,
-                        onTap: () {
-                          openRecipe(recipe);
-                        },
-                      );
-                    },
-                  ),
+                  for (final _IngredientMatch match in matchingRecipes)
+                    _IngredientMatchCard(
+                      match: match,
+                      photo: getRecipePhoto(match.recipe),
+                      onTap: () {
+                        openRecipe(match);
+                      },
+                    ),
                 ],
               ],
             ),
@@ -479,15 +491,34 @@ class _IngredientFinderPageState
   }
 }
 
-class _IngredientEntryCard
-    extends StatelessWidget {
-  final TextEditingController controller;
-  final VoidCallback onSearch;
+class _IngredientMatch {
+  final Map<String, dynamic> recipe;
+  final List<String> matchedIngredients;
+  final List<String> missingIngredients;
+  final double matchPercentage;
 
-  const _IngredientEntryCard({
-    required this.controller,
-    required this.onSearch,
+  const _IngredientMatch({
+    required this.recipe,
+    required this.matchedIngredients,
+    required this.missingIngredients,
+    required this.matchPercentage,
   });
+
+  String get recipeName {
+    return recipe['name']?.toString() ?? 'Unnamed recipe';
+  }
+
+  String get cookbookName {
+    return recipe['cookbookName']?.toString() ?? '';
+  }
+
+  int get percentage {
+    return (matchPercentage * 100).round();
+  }
+}
+
+class _IngredientFinderHeader extends StatelessWidget {
+  const _IngredientFinderHeader();
 
   @override
   Widget build(BuildContext context) {
@@ -496,84 +527,37 @@ class _IngredientEntryCard
       elevation: 1,
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: const Color(
-                      0xFFE6EFE5,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      14,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons
-                        .shopping_basket_outlined,
-                    color:
-                        Color(0xFF56715A),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Ingredients you have',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        'Enter one per line or separate them with commas.',
-                        style: TextStyle(
-                          color:
-                              Color(0xFF7C7470),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: controller,
-              minLines: 6,
-              maxLines: 12,
-              textCapitalization:
-                  TextCapitalization.sentences,
-              decoration:
-                  const InputDecoration(
-                hintText:
-                    'Chicken\nRice\nPeppers\nCream',
-                alignLabelWithHint: true,
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6EFE5),
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: const Icon(
+                Icons.shopping_basket_outlined,
+                color: Color(0xFF56715A),
+                size: 29,
               ),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: onSearch,
-                icon: const Icon(
-                  Icons.auto_awesome,
-                ),
-                label: const Text(
-                  'Find Recipes',
-                ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Cook with what you have',
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'Recipes are ranked by how many of their ingredients match what you have available.',
+                    style: TextStyle(color: Color(0xFF7C7470), height: 1.4),
+                  ),
+                ],
               ),
             ),
           ],
@@ -583,219 +567,123 @@ class _IngredientEntryCard
   }
 }
 
-class _IngredientResultCard
-    extends StatelessWidget {
-  final String recipeName;
-  final String cookbookName;
+class _IngredientMatchCard extends StatelessWidget {
+  final _IngredientMatch match;
   final Uint8List? photo;
-  final List<String> matchedIngredients;
-  final List<String> missingIngredients;
-  final int matchCount;
-  final int enteredCount;
   final VoidCallback onTap;
 
-  const _IngredientResultCard({
-    required this.recipeName,
-    required this.cookbookName,
+  const _IngredientMatchCard({
+    required this.match,
     required this.photo,
-    required this.matchedIngredients,
-    required this.missingIngredients,
-    required this.matchCount,
-    required this.enteredCount,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final double percentage =
-        enteredCount == 0
-            ? 0
-            : matchCount / enteredCount;
-
-    final bool completeMatch =
-        matchCount == enteredCount;
+    final Color matchColor = match.percentage >= 80
+        ? const Color(0xFF56715A)
+        : match.percentage >= 50
+        ? const Color(0xFF9A6824)
+        : const Color(0xFFD96C3F);
 
     return Card(
+      margin: const EdgeInsets.only(bottom: 14),
       elevation: 2,
-      margin:
-          const EdgeInsets.only(bottom: 14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding:
-              const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius:
-                        BorderRadius.circular(16),
-                    child: SizedBox(
-                      width: 88,
-                      height: 88,
-                      child: photo == null
-                          ? Container(
-                              color:
-                                  const Color(
-                                0xFFE6EFE5,
-                              ),
-                              child:
-                                  const Icon(
-                                Icons
-                                    .restaurant_menu,
-                                size: 36,
-                                color: Color(
-                                  0xFF56715A,
-                                ),
-                              ),
-                            )
-                          : Image.memory(
-                              photo!,
-                              fit: BoxFit.cover,
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: SizedBox(
+                  width: 86,
+                  height: 86,
+                  child: photo == null
+                      ? Container(
+                          color: const Color(0xFFFFE3D5),
+                          child: const Icon(
+                            Icons.restaurant_menu,
+                            color: Color(0xFFD96C3F),
+                            size: 34,
+                          ),
+                        )
+                      : Image.memory(photo!, fit: BoxFit.cover),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                recipeName,
-                                maxLines: 2,
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
-                                style:
-                                    const TextStyle(
-                                  fontSize: 19,
-                                  fontWeight:
-                                      FontWeight
-                                          .bold,
-                                ),
-                              ),
+                        Expanded(
+                          child: Text(
+                            match.recipeName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.bold,
                             ),
-                            if (completeMatch)
-                              Container(
-                                padding:
-                                    const EdgeInsets
-                                        .symmetric(
-                                  horizontal: 8,
-                                  vertical: 5,
-                                ),
-                                decoration:
-                                    BoxDecoration(
-                                  color:
-                                      const Color(
-                                    0xFFE6EFE5,
-                                  ),
-                                  borderRadius:
-                                      BorderRadius
-                                          .circular(
-                                    20,
-                                  ),
-                                ),
-                                child:
-                                    const Text(
-                                  'Best match',
-                                  style:
-                                      TextStyle(
-                                    fontSize: 11,
-                                    color: Color(
-                                      0xFF56715A,
-                                    ),
-                                    fontWeight:
-                                        FontWeight
-                                            .bold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          cookbookName,
-                          style:
-                              const TextStyle(
-                            color:
-                                Color(0xFF7C7470),
-                            fontWeight:
-                                FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 11),
-                        LinearProgressIndicator(
-                          value: percentage,
-                          minHeight: 7,
-                          borderRadius:
-                              BorderRadius.circular(
-                            10,
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
                           ),
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          '$matchCount of $enteredCount ingredients matched',
-                          style:
-                              const TextStyle(
-                            fontSize: 13,
-                            color:
-                                Color(0xFF6F6864),
+                          decoration: BoxDecoration(
+                            color: matchColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${match.percentage}%',
+                            style: TextStyle(
+                              color: matchColor,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.chevron_right,
-                    color:
-                        Color(0xFF8A817C),
-                  ),
-                ],
+                    const SizedBox(height: 5),
+                    Text(
+                      match.cookbookName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7C7470),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      '${match.matchedIngredients.length} ingredients matched',
+                      style: TextStyle(
+                        color: matchColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (match.missingIngredients.isNotEmpty) ...[
+                      const SizedBox(height: 7),
+                      Text(
+                        'Missing: ${match.missingIngredients.take(3).join(', ')}'
+                        '${match.missingIngredients.length > 3 ? '…' : ''}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Color(0xFF7C7470)),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              if (matchedIngredients
-                  .isNotEmpty) ...[
-                const SizedBox(height: 14),
-                _IngredientList(
-                  title: 'You have',
-                  icon:
-                      Icons.check_circle_outline,
-                  ingredients:
-                      matchedIngredients,
-                  backgroundColor:
-                      const Color(0xFFE6EFE5),
-                  foregroundColor:
-                      const Color(0xFF56715A),
-                ),
-              ],
-              if (missingIngredients
-                  .isNotEmpty) ...[
-                const SizedBox(height: 10),
-                _IngredientList(
-                  title: 'May still need',
-                  icon:
-                      Icons.shopping_cart_outlined,
-                  ingredients:
-                      missingIngredients,
-                  backgroundColor:
-                      const Color(0xFFFFEEE5),
-                  foregroundColor:
-                      const Color(0xFFD96C3F),
-                ),
-              ],
+              const Icon(Icons.chevron_right, color: Color(0xFF8A817C)),
             ],
           ),
         ),
@@ -804,155 +692,37 @@ class _IngredientResultCard
   }
 }
 
-class _IngredientList extends StatelessWidget {
-  final String title;
+class _IngredientFinderEmptyState extends StatelessWidget {
   final IconData icon;
-  final List<String> ingredients;
-  final Color backgroundColor;
-  final Color foregroundColor;
+  final String title;
+  final String message;
 
-  const _IngredientList({
-    required this.title,
+  const _IngredientFinderEmptyState({
     required this.icon,
-    required this.ingredients,
-    required this.backgroundColor,
-    required this.foregroundColor,
+    required this.title,
+    required this.message,
   });
 
   @override
   Widget build(BuildContext context) {
-    final List<String> visibleIngredients =
-        ingredients.take(5).toList();
-
-    final int hiddenCount =
-        ingredients.length -
-            visibleIngredients.length;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius:
-            BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: foregroundColor,
-              ),
-              const SizedBox(width: 7),
-              Text(
-                title,
-                style: TextStyle(
-                  color: foregroundColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            visibleIngredients.join(' • '),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: foregroundColor,
-              height: 1.35,
-            ),
-          ),
-          if (hiddenCount > 0) ...[
-            const SizedBox(height: 5),
-            Text(
-              '+$hiddenCount more',
-              style: TextStyle(
-                color: foregroundColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _IngredientHelp extends StatelessWidget {
-  const _IngredientHelp();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(24),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 30, 24, 30),
       child: Column(
         children: [
-          Icon(
-            Icons.lightbulb_outline,
-            size: 64,
-            color: Color(0xFFAAA19C),
-          ),
-          SizedBox(height: 16),
+          Icon(icon, size: 70, color: const Color(0xFFAAA19C)),
+          const SizedBox(height: 18),
           Text(
-            'Use what you already have',
+            title,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
-          SizedBox(height: 9),
+          const SizedBox(height: 10),
           Text(
-            'The search understands common variations, '
-            'such as chicken breast and chicken, or '
-            'cherry tomatoes and tomatoes.',
+            message,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 16,
-              color: Color(0xFF7C7470),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NoMatches extends StatelessWidget {
-  const _NoMatches();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 64,
-            color: Color(0xFFAAA19C),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No matching recipes',
-            style: TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 9),
-          Text(
-            'Try adding more ingredients or '
-            'using simpler names.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
+              height: 1.4,
               color: Color(0xFF7C7470),
             ),
           ),

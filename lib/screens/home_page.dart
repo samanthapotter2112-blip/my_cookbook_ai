@@ -8,16 +8,18 @@ import '../widgets/cookbook_card.dart';
 import '../widgets/quick_action_card.dart';
 import '../widgets/section_title.dart';
 import '../widgets/stats_card.dart';
-import 'backup_restore_page.dart';
+import 'ai_helper_page.dart';
 import 'collections_page.dart';
 import 'cookbook_page.dart';
 import 'favourites_page.dart';
 import 'ingredient_finder_page.dart';
 import 'meal_planner_page.dart';
+import 'pantry_page.dart';
 import 'random_recipe_page.dart';
 import 'scan_recipe_page.dart';
 import 'search_page.dart';
 import 'shopping_list_page.dart';
+import 'statistics_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -260,32 +262,10 @@ class _HomePageState extends State<HomePage> {
     setState(loadCookbooks);
   }
 
-  Future<void> openCollections() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CollectionsPage()),
-    );
-
-    if (!mounted) return;
-
-    setState(() {});
-  }
-
   Future<void> openSearch() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const SearchPage()),
-    );
-
-    if (!mounted) return;
-
-    setState(() {});
-  }
-
-  Future<void> openRandomRecipe() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const RandomRecipePage()),
     );
 
     if (!mounted) return;
@@ -315,6 +295,17 @@ class _HomePageState extends State<HomePage> {
     setState(loadCookbooks);
   }
 
+  Future<void> openAiHelper() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AiHelperPage()),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
   Future<void> openIngredientFinder() async {
     await Navigator.push(
       context,
@@ -337,6 +328,17 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
+  Future<void> openCollections() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CollectionsPage()),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
   Future<void> openShoppingList() async {
     await Navigator.push(
       context,
@@ -348,17 +350,35 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
-  Future<void> openBackupRestore() async {
-    final bool? restored = await Navigator.push<bool>(
+  Future<void> openRandomRecipe() async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const BackupRestorePage()),
+      MaterialPageRoute(builder: (_) => const RandomRecipePage()),
     );
 
     if (!mounted) return;
 
-    if (restored == true) {
-      loadCookbooks();
-    }
+    setState(() {});
+  }
+
+  Future<void> openPantry() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PantryPage()),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  Future<void> openStatistics() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const StatisticsPage()),
+    );
+
+    if (!mounted) return;
 
     setState(() {});
   }
@@ -373,8 +393,8 @@ class _HomePageState extends State<HomePage> {
         return AlertDialog(
           title: const Text('Delete cookbook?'),
           content: Text(
-            'Delete "$cookbookName" and every '
-            'recipe inside it? This cannot be undone.',
+            'Delete "$cookbookName" and every recipe inside it? '
+            'This cannot be undone.',
           ),
           actions: [
             TextButton(
@@ -520,9 +540,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-
         const SizedBox(height: 12),
-
         Row(
           children: [
             Expanded(
@@ -548,9 +566,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-
         const SizedBox(height: 12),
-
         Row(
           children: [
             Expanded(
@@ -576,9 +592,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-
         const SizedBox(height: 12),
-
         Row(
           children: [
             Expanded(
@@ -594,12 +608,38 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(width: 12),
             Expanded(
               child: QuickActionCard(
-                title: 'Backup',
-                subtitle: 'Save & Restore',
-                icon: Icons.backup_outlined,
-                backgroundColor: const Color(0xFFE8EEF8),
-                foregroundColor: const Color(0xFF4F678A),
-                onTap: openBackupRestore,
+                title: 'Pantry',
+                subtitle: 'Track ingredients',
+                icon: Icons.kitchen_outlined,
+                backgroundColor: const Color(0xFFE8F5E9),
+                foregroundColor: const Color(0xFF2E7D32),
+                onTap: openPantry,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: QuickActionCard(
+                title: 'Statistics',
+                subtitle: 'View your library',
+                icon: Icons.insert_chart_outlined,
+                backgroundColor: const Color(0xFFE9E7F4),
+                foregroundColor: const Color(0xFF625F85),
+                onTap: openStatistics,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: QuickActionCard(
+                title: 'Kitchen Helper',
+                subtitle: 'Ideas and substitutions',
+                icon: Icons.auto_awesome_outlined,
+                backgroundColor: const Color(0xFFEDE8F7),
+                foregroundColor: const Color(0xFF625F85),
+                onTap: openAiHelper,
               ),
             ),
           ],
@@ -635,6 +675,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     cookbookNameController.dispose();
+
     super.dispose();
   }
 
@@ -819,9 +860,8 @@ class _EmptyCookbookShelf extends StatelessWidget {
           ),
           SizedBox(height: 10),
           Text(
-            'Create your first cookbook, then '
-            'add recipes manually or scan them '
-            'from a page.',
+            'Create your first cookbook, then add recipes manually '
+            'or scan them from a page.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16, color: Color(0xFF7C7470)),
           ),

@@ -2,45 +2,53 @@
 <html>
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    This placeholder is replaced by the --base-href value during flutter build.
   -->
-  <base href="/my_cookbook_ai/">
+  <base href="/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="My Cookbook AI recipe organiser.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="my_cookbook_ai">
+  <meta name="apple-mobile-web-app-title" content="My Cookbook AI">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png">
 
-  <title>my_cookbook_ai</title>
+  <title>My Cookbook AI</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Browser OCR engine used by the Flutter web app. -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script>
+    window.recognizeRecipeImage = async function (imageDataUrl) {
+      if (!window.Tesseract) {
+        throw new Error(
+          'The text-recognition engine did not load. Check your internet connection and reload the app.'
+        );
+      }
+
+      const worker = await window.Tesseract.createWorker('eng', 1, {
+        logger: function (message) {
+          console.log('Recipe OCR:', message.status, message.progress ?? '');
+        }
+      });
+
+      try {
+        const result = await worker.recognize(imageDataUrl);
+        return result?.data?.text ?? '';
+      } finally {
+        await worker.terminate();
+      }
+    };
+  </script>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
