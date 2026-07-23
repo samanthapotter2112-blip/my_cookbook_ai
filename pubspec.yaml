@@ -29,7 +29,7 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   flutter:
-    sdk: flutter
+    sdk: flutter 
 
   cupertino_icons: ^1.0.8
   file_picker: ^8.0.7
@@ -40,6 +40,8 @@ dependencies:
   web: ^1.1.1
   syncfusion_flutter_pdf: ^34.1.31
 
+  http: ^1.2.2 
+  
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
 

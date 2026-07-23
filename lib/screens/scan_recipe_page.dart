@@ -1,11 +1,10 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
-import '../services/ocr_service.dart';
+import '../services/ai_recipe_service.dart';
 import '../services/recipe_parser.dart';
 import 'recipe_page.dart';
 import 'select_cookbook_page.dart';
@@ -25,9 +24,13 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
   final TextEditingController recognisedTextController =
       TextEditingController();
 
-  final TextEditingController websiteUrlController = TextEditingController();
+  final TextEditingController websiteUrlController =
+      TextEditingController();
 
   Uint8List? selectedImageBytes;
+
+  final List<RecipeImageUpload> selectedImages =
+      <RecipeImageUpload>[];
 
   bool isReadingImage = false;
   bool isReadingPdf = false;
@@ -35,6 +38,16 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
   String? selectedPdfName;
 
   _ImportMethod selectedMethod = _ImportMethod.none;
+
+  bool get isBusy => isReadingImage || isReadingPdf;
+
+  bool get hasText =>
+      recognisedTextController.text.trim().isNotEmpty;
+
+  bool get hasWebsiteUrl =>
+      websiteUrlController.text.trim().isNotEmpty;
+
+  bool get hasSelectedImages => selectedImages.isNotEmpty;
 
   @override
   void initState() {
@@ -50,27 +63,15 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
     setState(() {});
   }
 
-  bool get supportsAutomaticOcr => OcrService.isSupported;
-
-  bool get hasText {
-    return recognisedTextController.text.trim().isNotEmpty;
-  }
-
-  bool get hasWebsiteUrl {
-    return websiteUrlController.text.trim().isNotEmpty;
-  }
-
-  bool get isBusy {
-    return isReadingImage || isReadingPdf;
-  }
-
   void selectMethod(_ImportMethod method) {
     setState(() {
       selectedMethod = method;
     });
 
     if (method == _ImportMethod.scan) {
-      showImageOptions();
+      if (selectedImages.isEmpty) {
+        showImageOptions();
+      }
     } else if (method == _ImportMethod.pdf) {
       choosePdf();
     }
@@ -78,93 +79,142 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
 
   Future<void> chooseImage(ImageSource source) async {
     try {
-      final XFile? pickedImage = await imagePicker.pickImage(
+      final XFile? pickedImage =
+          await imagePicker.pickImage(
         source: source,
         imageQuality: 90,
       );
 
-      if (pickedImage == null) {
-        return;
-      }
+      if (pickedImage == null) return;
 
-      final Uint8List imageBytes = await pickedImage.readAsBytes();
+      final Uint8List imageBytes =
+          await pickedImage.readAsBytes();
 
       if (!mounted) return;
 
+      final RecipeImageUpload newImage =
+          RecipeImageUpload(
+        imageBytes: imageBytes,
+        mimeType:
+            pickedImage.mimeType ?? 'image/jpeg',
+      );
+
       setState(() {
         selectedMethod = _ImportMethod.scan;
+
+        selectedImages.add(newImage);
+
+        // Display the most recently added image
+        // in the larger preview area.
         selectedImageBytes = imageBytes;
+
         selectedPdfName = null;
         recognisedTextController.clear();
       });
-
-      if (supportsAutomaticOcr) {
-        await recogniseText(
-          imageBytes: imageBytes,
-          imagePath: pickedImage.path,
-        );
-      } else {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Automatic page reading is unavailable on this platform. '
-              'Paste the recipe text into the box below instead.',
-            ),
-          ),
-        );
-      }
     } catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not select the image: $error')),
+        SnackBar(
+          content: Text(
+            'Could not select the image: $error',
+          ),
+        ),
       );
     }
   }
 
-  Future<void> recogniseText({
-    required Uint8List imageBytes,
-    required String imagePath,
-  }) async {
+  Future<void> extractSelectedImages() async {
+    if (selectedImages.isEmpty || isReadingImage) {
+      return;
+    }
+
+    if (selectedImages.length > 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You can scan a maximum of four pages '
+            'for one recipe.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
     setState(() {
       isReadingImage = true;
     });
 
     try {
-      final String recognisedText = await OcrService.recogniseText(
-        imageBytes: imageBytes,
-        imagePath: imagePath,
+      final ParsedRecipe recipe =
+          await AiRecipeService.extractRecipeFromImages(
+        images: List<RecipeImageUpload>.from(
+          selectedImages,
+        ),
       );
 
       if (!mounted) return;
 
-      recognisedTextController.text = recognisedText.trim();
+      setState(() {
+        isReadingImage = false;
+      });
 
-      if (recognisedText.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No text was found. Try taking a clearer, brighter photo with '
-              'the page flat and filling most of the picture.',
-            ),
-          ),
-        );
-      }
+      await showRecipePreview(recipe);
     } catch (error) {
       if (!mounted) return;
 
+      setState(() {
+        isReadingImage = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('The page could not be read: $error')),
+        SnackBar(
+          content: Text(
+            error
+                .toString()
+                .replaceFirst('Exception: ', ''),
+          ),
+        ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isReadingImage = false;
-        });
-      }
     }
+  }
+
+  void selectImagePreview(int index) {
+    if (index < 0 ||
+        index >= selectedImages.length) {
+      return;
+    }
+
+    setState(() {
+      selectedImageBytes =
+          selectedImages[index].imageBytes;
+    });
+  }
+
+  void removeSelectedImage(int index) {
+    if (index < 0 ||
+        index >= selectedImages.length ||
+        isReadingImage) {
+      return;
+    }
+
+    setState(() {
+      final Uint8List removedImage =
+          selectedImages[index].imageBytes;
+
+      selectedImages.removeAt(index);
+
+      if (selectedImages.isEmpty) {
+        selectedImageBytes = null;
+      } else if (identical(
+        selectedImageBytes,
+        removedImage,
+      )) {
+        selectedImageBytes =
+            selectedImages.last.imageBytes;
+      }
+    });
   }
 
   Future<void> choosePdf() async {
@@ -175,17 +225,13 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
         withData: true,
       );
 
-      if (result == null) {
-        return;
-      }
+      if (result == null) return;
 
       final PlatformFile pickedFile = result.files.single;
-
       final Uint8List? pdfBytes = pickedFile.bytes;
 
       if (pdfBytes == null) {
         if (!mounted) return;
-
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -193,16 +239,15 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
             ),
           ),
         );
-
         return;
       }
 
       if (!mounted) return;
-
       setState(() {
         selectedMethod = _ImportMethod.pdf;
         selectedPdfName = pickedFile.name;
         selectedImageBytes = null;
+        selectedImages.clear();
         recognisedTextController.clear();
         isReadingPdf = true;
       });
@@ -211,13 +256,10 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
 
       try {
         document = PdfDocument(inputBytes: pdfBytes);
-
         final PdfTextExtractor extractor = PdfTextExtractor(document);
-
         final String extractedText = extractor.extractText().trim();
 
         if (!mounted) return;
-
         recognisedTextController.text = extractedText;
 
         if (extractedText.isEmpty) {
@@ -235,7 +277,6 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
       }
     } catch (error) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('The PDF could not be read: $error')),
       );
@@ -280,7 +321,6 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                   subtitle: const Text('Photograph a cookbook page'),
                   onTap: () {
                     Navigator.pop(bottomSheetContext);
-
                     chooseImage(ImageSource.camera);
                   },
                 ),
@@ -298,7 +338,6 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                   subtitle: const Text('Use an existing recipe photo'),
                   onTap: () {
                     Navigator.pop(bottomSheetContext);
-
                     chooseImage(ImageSource.gallery);
                   },
                 ),
@@ -311,51 +350,37 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
   }
 
   void clearImport() {
-    setState(() {
-      selectedMethod = _ImportMethod.none;
-      selectedImageBytes = null;
-      selectedPdfName = null;
-      recognisedTextController.clear();
-      websiteUrlController.clear();
-    });
-  }
+  setState(() {
+    selectedMethod = _ImportMethod.none;
+    selectedImageBytes = null;
+    selectedImages.clear();
+    selectedPdfName = null;
+    recognisedTextController.clear();
+    websiteUrlController.clear();
+  });
+}
 
   void turnTextIntoRecipe() {
     final String text = recognisedTextController.text.trim();
-
-    if (text.isEmpty) {
-      return;
-    }
+    if (text.isEmpty) return;
 
     final ParsedRecipe recipe = RecipeParser.parse(text);
-
     showRecipePreview(recipe);
   }
 
   Future<void> showRecipePreview(ParsedRecipe recipe) async {
-    final TextEditingController nameController = TextEditingController(
-      text: recipe.name,
-    );
-
-    final TextEditingController prepController = TextEditingController(
-      text: recipe.prepTime,
-    );
-
-    final TextEditingController cookController = TextEditingController(
-      text: recipe.cookTime,
-    );
-
-    final TextEditingController servingsController = TextEditingController(
-      text: recipe.servings,
-    );
-
-    final TextEditingController ingredientsController = TextEditingController(
-      text: recipe.ingredients,
-    );
-
-    final TextEditingController methodController = TextEditingController(
-      text: recipe.method,
-    );
+    final TextEditingController nameController =
+        TextEditingController(text: recipe.name);
+    final TextEditingController prepController =
+        TextEditingController(text: recipe.prepTime);
+    final TextEditingController cookController =
+        TextEditingController(text: recipe.cookTime);
+    final TextEditingController servingsController =
+        TextEditingController(text: recipe.servings);
+    final TextEditingController ingredientsController =
+        TextEditingController(text: recipe.ingredients);
+    final TextEditingController methodController =
+        TextEditingController(text: recipe.method);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -368,206 +393,205 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
           initialChildSize: 0.94,
           minChildSize: 0.65,
           maxChildSize: 0.98,
-          builder:
-              (BuildContext sheetContext, ScrollController scrollController) {
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 10, 8),
-                      child: Row(
+          builder: (
+            BuildContext sheetContext,
+            ScrollController scrollController,
+          ) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 10, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Recipe preview',
+                              style: TextStyle(
+                                fontSize: 25,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Check the details before saving.',
+                              style: TextStyle(color: Color(0xFF7C7470)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () {
+                          Navigator.pop(bottomSheetContext);
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+                    children: [
+                      _PreviewSection(
+                        title: 'Recipe',
+                        icon: Icons.restaurant_menu,
+                        child: TextField(
+                          controller: nameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Recipe name',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
                         children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Recipe preview',
-                                  style: TextStyle(
-                                    fontSize: 25,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                SizedBox(height: 3),
-                                Text(
-                                  'Check the details before saving.',
-                                  style: TextStyle(color: Color(0xFF7C7470)),
-                                ),
-                              ],
+                          Expanded(
+                            child: TextField(
+                              controller: prepController,
+                              decoration: const InputDecoration(
+                                labelText: 'Prep time',
+                                hintText: '20 mins',
+                              ),
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Close',
-                            onPressed: () {
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: cookController,
+                              decoration: const InputDecoration(
+                                labelText: 'Cook time',
+                                hintText: '35 mins',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: servingsController,
+                        decoration: const InputDecoration(
+                          labelText: 'Servings',
+                          hintText: '4',
+                          prefixIcon: Icon(Icons.people_outline),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _PreviewSection(
+                        title: 'Ingredients',
+                        icon: Icons.shopping_basket_outlined,
+                        child: TextField(
+                          controller: ingredientsController,
+                          minLines: 7,
+                          maxLines: 14,
+                          decoration: const InputDecoration(
+                            hintText: 'One ingredient per line',
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _PreviewSection(
+                        title: 'Method',
+                        icon: Icons.format_list_numbered,
+                        child: TextField(
+                          controller: methodController,
+                          minLines: 9,
+                          maxLines: 18,
+                          decoration: const InputDecoration(
+                            hintText: 'Cooking instructions',
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        height: 54,
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            final String recipeName =
+                                nameController.text.trim();
+
+                            if (recipeName.isEmpty) {
+                              ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please enter a recipe name.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+
+                            final String? cookbook =
+                                await Navigator.push<String>(
+                              sheetContext,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const SelectCookbookPage(),
+                              ),
+                            );
+
+                            if (!sheetContext.mounted || cookbook == null) {
+                              return;
+                            }
+
+                            final bool? saved =
+                                await Navigator.push<bool>(
+                              sheetContext,
+                              MaterialPageRoute(
+                                builder: (_) => RecipePage(
+                                  cookbookName: cookbook,
+                                  recipeName: recipeName,
+                                  initialPrepTime:
+                                      prepController.text.trim(),
+                                  initialCookTime:
+                                      cookController.text.trim(),
+                                  initialServings:
+                                      servingsController.text.trim(),
+                                  initialIngredients:
+                                      ingredientsController.text.trim(),
+                                  initialMethod:
+                                      methodController.text.trim(),
+                                  initialPhoto: selectedImageBytes,
+                                ),
+                              ),
+                            );
+
+                            if (!mounted ||
+                                !bottomSheetContext.mounted) {
+                              return;
+                            }
+
+                            if (saved == true) {
                               Navigator.pop(bottomSheetContext);
-                            },
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: ListView(
-                        controller: scrollController,
-                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
-                        children: [
-                          _PreviewSection(
-                            title: 'Recipe',
-                            icon: Icons.restaurant_menu,
-                            child: TextField(
-                              controller: nameController,
-                              textCapitalization: TextCapitalization.words,
-                              decoration: const InputDecoration(
-                                labelText: 'Recipe name',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: prepController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Prep time',
-                                    hintText: '20 mins',
+                              clearImport();
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '$recipeName added to $cookbook',
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextField(
-                                  controller: cookController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Cook time',
-                                    hintText: '35 mins',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          TextField(
-                            controller: servingsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Servings',
-                              hintText: '4',
-                              prefixIcon: Icon(Icons.people_outline),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          _PreviewSection(
-                            title: 'Ingredients',
-                            icon: Icons.shopping_basket_outlined,
-                            child: TextField(
-                              controller: ingredientsController,
-                              minLines: 7,
-                              maxLines: 14,
-                              decoration: const InputDecoration(
-                                hintText: 'One ingredient per line',
-                                alignLabelWithHint: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          _PreviewSection(
-                            title: 'Method',
-                            icon: Icons.format_list_numbered,
-                            child: TextField(
-                              controller: methodController,
-                              minLines: 9,
-                              maxLines: 18,
-                              decoration: const InputDecoration(
-                                hintText: 'Cooking instructions',
-                                alignLabelWithHint: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          SizedBox(
-                            height: 54,
-                            child: FilledButton.icon(
-                              onPressed: () async {
-                                final String recipeName = nameController.text
-                                    .trim();
-
-                                if (recipeName.isEmpty) {
-                                  ScaffoldMessenger.of(
-                                    sheetContext,
-                                  ).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Please enter a recipe name.',
-                                      ),
-                                    ),
-                                  );
-
-                                  return;
-                                }
-
-                                final String? cookbook =
-                                    await Navigator.push<String>(
-                                      sheetContext,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const SelectCookbookPage(),
-                                      ),
-                                    );
-
-                                if (!sheetContext.mounted || cookbook == null) {
-                                  return;
-                                }
-
-                                final bool? saved = await Navigator.push<bool>(
-                                  sheetContext,
-                                  MaterialPageRoute(
-                                    builder: (_) => RecipePage(
-                                      cookbookName: cookbook,
-                                      recipeName: recipeName,
-                                      initialPrepTime: prepController.text
-                                          .trim(),
-                                      initialCookTime: cookController.text
-                                          .trim(),
-                                      initialServings: servingsController.text
-                                          .trim(),
-                                      initialIngredients: ingredientsController
-                                          .text
-                                          .trim(),
-                                      initialMethod: methodController.text
-                                          .trim(),
-                                      initialPhoto: selectedImageBytes,
-                                    ),
-                                  ),
-                                );
-
-                                if (!mounted || !bottomSheetContext.mounted) {
-                                  return;
-                                }
-
-                                if (saved == true) {
-                                  Navigator.pop(bottomSheetContext);
-
-                                  clearImport();
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        '$recipeName added to $cookbook',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.menu_book_outlined),
-                              label: const Text('Choose Cookbook and Save'),
-                            ),
-                          ),
-                        ],
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.menu_book_outlined),
+                          label: const Text('Choose Cookbook and Save'),
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -599,9 +623,7 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                 backgroundColor: const Color(0xFFFFE3D5),
                 foregroundColor: const Color(0xFFD96C3F),
                 isSelected: selectedMethod == _ImportMethod.scan,
-                onTap: () {
-                  selectMethod(_ImportMethod.scan);
-                },
+                onTap: () => selectMethod(_ImportMethod.scan),
               ),
             ),
             const SizedBox(width: 12),
@@ -613,9 +635,7 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                 backgroundColor: const Color(0xFFE8F5E9),
                 foregroundColor: const Color(0xFF2E7D32),
                 isSelected: selectedMethod == _ImportMethod.paste,
-                onTap: () {
-                  selectMethod(_ImportMethod.paste);
-                },
+                onTap: () => selectMethod(_ImportMethod.paste),
               ),
             ),
           ],
@@ -631,9 +651,7 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                 backgroundColor: const Color(0xFFE8EEF8),
                 foregroundColor: const Color(0xFF4F678A),
                 isSelected: selectedMethod == _ImportMethod.website,
-                onTap: () {
-                  selectMethod(_ImportMethod.website);
-                },
+                onTap: () => selectMethod(_ImportMethod.website),
               ),
             ),
             const SizedBox(width: 12),
@@ -647,9 +665,7 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                 isSelected: selectedMethod == _ImportMethod.pdf,
                 onTap: isBusy
                     ? () {}
-                    : () {
-                        selectMethod(_ImportMethod.pdf);
-                      },
+                    : () => selectMethod(_ImportMethod.pdf),
               ),
             ),
           ],
@@ -662,103 +678,265 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
     switch (selectedMethod) {
       case _ImportMethod.scan:
         return buildScanArea();
-
       case _ImportMethod.paste:
         return buildTextArea(
           title: 'Paste recipe text',
-          subtitle: 'Copy the full recipe, including ingredients and method.',
+          subtitle:
+              'Copy the full recipe, including ingredients and method.',
           icon: Icons.content_paste_outlined,
         );
-
       case _ImportMethod.website:
         return buildWebsiteArea();
-
       case _ImportMethod.pdf:
         return buildPdfArea();
-
       case _ImportMethod.none:
         return const _ImportHelpCard();
     }
   }
 
   Widget buildScanArea() {
-    return Column(
-      children: [
-        Card(
-          margin: EdgeInsets.zero,
-          clipBehavior: Clip.antiAlias,
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                height: 260,
-                child: selectedImageBytes == null
-                    ? Container(
-                        color: const Color(0xFFFFE3D5),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.document_scanner_outlined,
-                              size: 70,
-                              color: Color(0xFFD96C3F),
+  return Column(
+    children: [
+      Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              height: 260,
+              child: selectedImageBytes == null
+                  ? Container(
+                      color: const Color(0xFFFFE3D5),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.document_scanner_outlined,
+                            size: 70,
+                            color: Color(0xFFD96C3F),
+                          ),
+                          SizedBox(height: 15),
+                          Text(
+                            'Scan a cookbook page',
+                            style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
                             ),
-                            SizedBox(height: 15),
-                            Text(
-                              'Scan a cookbook page',
+                          ),
+                          SizedBox(height: 7),
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 34,
+                            ),
+                            child: Text(
+                              'Keep the page flat, clear and well lit.',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 21,
-                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF7C7470),
                               ),
                             ),
-                            SizedBox(height: 7),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 34),
-                              child: Text(
-                                'Keep the page flat, clear and well lit.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Color(0xFF7C7470)),
-                              ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Image.memory(
+                      selectedImageBytes!,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (selectedImages.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Recipe pages',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
+                          ),
                         ),
-                      )
-                    : Image.memory(selectedImageBytes!, fit: BoxFit.cover),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton.tonalIcon(
-                    onPressed: isReadingImage ? null : showImageOptions,
-                    icon: const Icon(Icons.add_a_photo_outlined),
-                    label: Text(
-                      selectedImageBytes == null
-                          ? 'Choose Recipe Page'
-                          : 'Choose Another Page',
+                        Text(
+                          '${selectedImages.length}/4',
+                          style: const TextStyle(
+                            color: Color(0xFF7C7470),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 94,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: selectedImages.length,
+                        separatorBuilder: (_, _) => 
+                            const SizedBox(width: 10),
+                          itemBuilder: (context, index) {
+                          final RecipeImageUpload image =
+                              selectedImages[index];
+
+                          final bool isSelected =
+                              identical(
+                                selectedImageBytes,
+                                image.imageBytes,
+                              );
+
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              GestureDetector(
+                                onTap: () =>
+                                    selectImagePreview(index),
+                                child: AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 180),
+                                  width: 78,
+                                  height: 94,
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius:
+                                        BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(0xFFD96C3F)
+                                          : const Color(0xFFE2DDD8),
+                                      width: isSelected ? 3 : 1,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.circular(10),
+                                    child: Image.memory(
+                                      image.imageBytes,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: -7,
+                                right: -7,
+                                child: Material(
+                                  color: Colors.white,
+                                  shape: const CircleBorder(),
+                                  elevation: 2,
+                                  child: IconButton(
+                                    tooltip:
+                                        'Remove page ${index + 1}',
+                                    visualDensity:
+                                        VisualDensity.compact,
+                                    iconSize: 18,
+                                    onPressed: isReadingImage
+                                        ? null
+                                        : () =>
+                                            removeSelectedImage(index),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Color(0xFF8A4545),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                left: 6,
+                                bottom: 6,
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius:
+                                        BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton.tonalIcon(
+                      onPressed: isReadingImage ||
+                              selectedImages.length >= 4
+                          ? null
+                          : showImageOptions,
+                      icon: const Icon(
+                        Icons.add_a_photo_outlined,
+                      ),
+                      label: Text(
+                        selectedImages.isEmpty
+                            ? 'Choose Recipe Page'
+                            : selectedImages.length >= 4
+                                ? 'Maximum 4 Pages'
+                                : 'Add Another Page',
+                      ),
                     ),
                   ),
-                ),
+                  if (selectedImages.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton.icon(
+                        onPressed: isReadingImage
+                            ? null
+                            : extractSelectedImages,
+                        icon: isReadingImage
+                            ? const SizedBox(
+                                width: 19,
+                                height: 19,
+                                child:
+                                    CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : const Icon(Icons.auto_awesome),
+                        label: Text(
+                          isReadingImage
+                              ? 'Extracting Recipe...'
+                              : 'Extract Recipe',
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(height: 18),
-        buildTextArea(
-          title: 'Recognised text',
-          subtitle: supportsAutomaticOcr
-              ? 'Correct anything that was not read properly.'
-              : 'Paste the recipe text manually on this platform.',
-          icon: Icons.text_snippet_outlined,
-        ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   Widget buildWebsiteArea() {
     return Column(
@@ -773,7 +951,10 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.language_outlined, color: Color(0xFF4F678A)),
+                    Icon(
+                      Icons.language_outlined,
+                      color: Color(0xFF4F678A),
+                    ),
                     SizedBox(width: 10),
                     Text(
                       'Recipe website',
@@ -862,8 +1043,8 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                   isReadingPdf
                       ? 'Extracting text from the PDF...'
                       : selectedPdfName == null
-                      ? 'Text-based PDFs can be imported automatically.'
-                      : 'The extracted text is shown below for checking.',
+                          ? 'Text-based PDFs can be imported automatically.'
+                          : 'The extracted text is shown below for checking.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Color(0xFF7C7470)),
                 ),
@@ -967,23 +1148,6 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
                   ),
               ],
             ),
-            if (selectedMethod == _ImportMethod.scan &&
-                !supportsAutomaticOcr) ...[
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF4D8),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Text(
-                  'Automatic OCR is unavailable on this platform. '
-                  'Paste or type the recipe text instead.',
-                  style: TextStyle(color: Color(0xFF75622E)),
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             TextField(
               controller: recognisedTextController,
@@ -991,7 +1155,8 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
               maxLines: 24,
               readOnly: isBusy,
               decoration: const InputDecoration(
-                hintText: 'Paste the recipe name, ingredients and method here.',
+                hintText:
+                    'Paste the recipe name, ingredients and method here.',
                 alignLabelWithHint: true,
               ),
             ),
@@ -1004,12 +1169,9 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
   @override
   void dispose() {
     recognisedTextController.removeListener(refreshPage);
-
     websiteUrlController.removeListener(refreshPage);
-
     recognisedTextController.dispose();
     websiteUrlController.dispose();
-
     super.dispose();
   }
 
@@ -1043,7 +1205,9 @@ class _ScanRecipePageState extends State<ScanRecipePage> {
           buildImportMethodGrid(),
           const SizedBox(height: 22),
           buildSelectedImportArea(),
-          if (selectedMethod != _ImportMethod.none) ...[
+          if (selectedMethod == _ImportMethod.paste ||
+          selectedMethod == _ImportMethod.website ||
+          selectedMethod == _ImportMethod.pdf) ...[
             const SizedBox(height: 18),
             SizedBox(
               height: 54,

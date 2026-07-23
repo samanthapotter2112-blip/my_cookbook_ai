@@ -8,6 +8,7 @@ Future<void> main() async {
 
   await Hive.initFlutter();
   await Hive.openBox('cookbooks');
+  await Hive.openBox('pantry');
   final cookbookBox = Hive.box('cookbooks');
 
   debugPrint(
